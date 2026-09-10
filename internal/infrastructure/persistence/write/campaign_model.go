@@ -9,11 +9,12 @@ import (
 )
 
 type CampaignModel struct {
-	ID        uuid.UUID `gorm:"column:id;primaryKey"`
-	ClientID  uuid.UUID `gorm:"column:client_id"`
-	Name      string    `gorm:"column:name"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at"`
+	ID        uuid.UUID  `gorm:"column:id;primaryKey"`
+	ClientID  uuid.UUID  `gorm:"column:client_id"`
+	Name      string     `gorm:"column:name"`
+	CreatedAt time.Time  `gorm:"column:created_at"`
+	UpdatedAt time.Time  `gorm:"column:updated_at"`
+	DeletedAt *time.Time `gorm:"column:deleted_at"`
 
 	BackgroundStatus       string  `gorm:"column:background_status"`
 	BackgroundPendingKey   *string `gorm:"column:background_pending_key"`
@@ -52,6 +53,7 @@ func campaignModelFromDomain(c *domaincampaign.Campaign) *CampaignModel {
 		Name:                   c.Name,
 		CreatedAt:              c.CreatedAt,
 		UpdatedAt:              c.UpdatedAt,
+		DeletedAt:              c.DeletedAt,
 		BackgroundStatus:       status,
 		BackgroundPendingKey:   optionalNonEmpty(c.BackgroundPendingKey),
 		BackgroundThumbnailKey: optionalNonEmpty(c.BackgroundThumbnailKey),
@@ -72,6 +74,7 @@ func campaignDomainFromModel(m *CampaignModel) *domaincampaign.Campaign {
 		Name:                   m.Name,
 		CreatedAt:              m.CreatedAt,
 		UpdatedAt:              m.UpdatedAt,
+		DeletedAt:              m.DeletedAt,
 		BackgroundStatus:       status,
 		BackgroundPendingKey:   derefString(m.BackgroundPendingKey),
 		BackgroundThumbnailKey: derefString(m.BackgroundThumbnailKey),

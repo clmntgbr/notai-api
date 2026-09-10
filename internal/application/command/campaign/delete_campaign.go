@@ -33,18 +33,16 @@ func (h *DeleteCampaignHandler) Handle(ctx context.Context, cmd DeleteCampaignCo
 			return errors.New("failed to get campaign")
 		}
 		if campaign == nil {
-			return nil
+			return errors.New("campaign not found")
 		}
 
-		if err := campaign.MarkDeleted(); err != nil {
+		if err := campaign.SoftDelete(); err != nil {
 			return err
 		}
-		events := campaign.PullEvents()
 
-		if err := h.repo.Delete(txCtx, campaign.ID); err != nil {
+		if err := h.repo.Update(txCtx, campaign); err != nil {
 			return errors.New("failed to delete campaign")
 		}
-
-		return h.outbox.StoreEvents(txCtx, events)
+		return h.outbox.StoreEvents(txCtx, campaign.PullEvents())
 	})
 }

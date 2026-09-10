@@ -45,6 +45,7 @@ func (r *campaignReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*d
 	var row campaignRow
 	err := r.db.WithContext(ctx).
 		Select(campaignSelectCols).
+		Where("deleted_at IS NULL").
 		First(&row, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -74,7 +75,8 @@ func (r *campaignReadRepository) FindPageByClientID(
 	db := r.db.WithContext(ctx).
 		Model(&campaignRow{}).
 		Where("client_id = ?", clientID).
-		Where("is_default = false")
+		Where("is_default = false").
+		Where("deleted_at IS NULL")
 
 	if query.Search != "" {
 		db = db.Where("name ILIKE ?", "%"+query.Search+"%")

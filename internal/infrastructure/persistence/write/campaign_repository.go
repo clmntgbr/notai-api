@@ -32,13 +32,11 @@ func (r *campaignWriteRepository) Update(ctx context.Context, campaign *domainca
 	return DBWithContext(ctx, r.db).Save(campaignModelFromDomain(campaign)).Error
 }
 
-func (r *campaignWriteRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return DBWithContext(ctx, r.db).Delete(&CampaignModel{}, id).Error
-}
-
 func (r *campaignWriteRepository) GetByID(ctx context.Context, id uuid.UUID) (*domaincampaign.Campaign, error) {
 	var model CampaignModel
-	err := DBWithContext(ctx, r.db).First(&model, "id = ?", id).Error
+	err := DBWithContext(ctx, r.db).
+		Where("deleted_at IS NULL").
+		First(&model, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -53,7 +51,9 @@ func (r *campaignWriteRepository) GetByBackgroundPendingKey(
 	pendingKey string,
 ) (*domaincampaign.Campaign, error) {
 	var model CampaignModel
-	err := DBWithContext(ctx, r.db).First(&model, "background_pending_key = ?", pendingKey).Error
+	err := DBWithContext(ctx, r.db).
+		Where("deleted_at IS NULL").
+		First(&model, "background_pending_key = ?", pendingKey).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

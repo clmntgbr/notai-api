@@ -20,6 +20,7 @@ type Campaign struct {
 	IsDefault bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	DeletedAt *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   string
@@ -90,6 +91,9 @@ func (c *Campaign) ApplyUpdate(name string) error {
 	if c.IsDefault {
 		return ErrDefaultCampaignProtected
 	}
+	if c.IsDeleted() {
+		return errors.New("campaign not found")
+	}
 	c.Name = name
 	c.UpdatedAt = time.Now().UTC()
 	c.recordEvent(CampaignUpdated{
@@ -102,15 +106,25 @@ func (c *Campaign) ApplyUpdate(name string) error {
 	return nil
 }
 
-func (c *Campaign) MarkDeleted() error {
+func (c *Campaign) IsDeleted() bool {
+	return c.DeletedAt != nil
+}
+
+func (c *Campaign) SoftDelete() error {
 	if c.IsDefault {
 		return ErrDefaultCampaignProtected
 	}
+	if c.IsDeleted() {
+		return nil
+	}
+	now := time.Now().UTC()
+	c.DeletedAt = &now
+	c.UpdatedAt = now
 	c.recordEvent(CampaignDeleted{
 		ID:         uuid.New().String(),
 		CampaignID: c.ID.String(),
 		ClientID:   c.ClientID.String(),
-		Timestamp:  time.Now().UTC(),
+		Timestamp:  now,
 	})
 	return nil
 }

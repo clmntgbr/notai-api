@@ -269,6 +269,9 @@ func (h *CampaignHandler) Delete(c fiber.Ctx) error {
 				"code":    "DEFAULT_CAMPAIGN_PROTECTED",
 			})
 		}
+		if err.Error() == "campaign not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to delete campaign"})
 	}
 

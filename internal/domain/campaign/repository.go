@@ -13,7 +13,6 @@ type CampaignWriteRepository interface {
 	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 	Save(ctx context.Context, campaign *Campaign) error
 	Update(ctx context.Context, campaign *Campaign) error
-	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Campaign, error)
 	GetByBackgroundPendingKey(ctx context.Context, pendingKey string) (*Campaign, error)
 }
