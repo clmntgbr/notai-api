@@ -63,7 +63,7 @@ User ──< user_clients >── Client ──< Campaign
 - A user can belong to several clients; a client has several members.
 - Campaigns always use `httpctx.GetCurrentClientID()` — never a `clientId` from the body.
 - Switch active client: `PUT /api/users/me/current-client` with `{ "clientId" }`.
-- Unknown id and non-member both return **404** (no existence leak). Cross-client campaign access for a member of the other client returns **409** + `WRONG_ORGANIZATION`.
+- Unknown id and non-member both return **404** (no existence leak). Cross-client campaign access for a member of the other client returns **409** + `WRONG_CLIENT`.
 
 ### Sync command + async event flow
 
@@ -187,7 +187,7 @@ Scoped by the caller’s `currentClientId`.
 |---|---|---|
 | `GET` | `/api/campaigns` | List for current client (paginated) |
 | `POST` | `/api/campaigns` | Create — body `{ "name" }` |
-| `GET` | `/api/campaigns/:id` | Get (409 `WRONG_ORGANIZATION` if other client you belong to) |
+| `GET` | `/api/campaigns/:id` | Get (409 `WRONG_CLIENT` if other client you belong to) |
 | `PUT` | `/api/campaigns/:id` | Update |
 | `DELETE` | `/api/campaigns/:id` | Delete |
 

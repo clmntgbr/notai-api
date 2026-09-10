@@ -118,7 +118,7 @@ func (h *CampaignHandler) GetByID(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-		"code":       "WRONG_ORGANIZATION",
+		"code":       "WRONG_CLIENT",
 		"message":    "Campaign belongs to another client",
 		"clientId":   ownerClient.ID.String(),
 		"clientName": ownerClient.Name,

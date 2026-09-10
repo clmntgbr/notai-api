@@ -426,7 +426,7 @@ func TestUserWebhookHandler_Execute_UserDeleted_InvalidPayload(t *testing.T) {
 func TestUserWebhookHandler_Execute_UnknownEventType(t *testing.T) {
 	h := newUserWebhookHandler(userWebhookMocks{})
 
-	resp := executeWebhook(t, h, clerkEvent("organization.created", map[string]string{"id": "org_123"}))
+	resp := executeWebhook(t, h, clerkEvent("session.created", map[string]string{"id": "sess_123"}))
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d want %d", resp.StatusCode, http.StatusOK)
 	}

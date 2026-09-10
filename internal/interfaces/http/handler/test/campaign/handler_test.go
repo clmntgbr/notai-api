@@ -304,7 +304,7 @@ func TestCampaignHandler_GetByID_Success(t *testing.T) {
 	}
 }
 
-func TestCampaignHandler_GetByID_WrongOrganization(t *testing.T) {
+func TestCampaignHandler_GetByID_WrongClient(t *testing.T) {
 	view := sampleCampaignView()
 	view.ClientID = otherClientID
 	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{view}, errs: []error{nil}}
@@ -327,12 +327,12 @@ func TestCampaignHandler_GetByID_WrongOrganization(t *testing.T) {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 	body := testutil.DecodeJSONMap(t, resp)
-	if body["code"] != "WRONG_ORGANIZATION" {
+	if body["code"] != "WRONG_CLIENT" {
 		t.Fatalf("code: %+v", body)
 	}
 }
 
-func TestCampaignHandler_GetByID_WrongOrganization_NotMember(t *testing.T) {
+func TestCampaignHandler_GetByID_WrongClient_NotMember(t *testing.T) {
 	view := sampleCampaignView()
 	view.ClientID = otherClientID
 	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{view}, errs: []error{nil}}
