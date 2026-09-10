@@ -9,15 +9,14 @@ import (
 )
 
 type User struct {
-	ID              uuid.UUID
-	ClerkID         string
-	FirstName       string
-	LastName        string
-	Banned          bool
-	Email           string
-	ActiveProjectID *uuid.UUID
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID        uuid.UUID
+	ClerkID   string
+	FirstName string
+	LastName  string
+	Banned    bool
+	Email     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	events []event.DomainEvent
 }
