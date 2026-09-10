@@ -1,6 +1,7 @@
 package campaign
 
 import (
+	"errors"
 	"time"
 
 	"go-api/internal/domain/event"
@@ -8,10 +9,15 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	ErrDefaultCampaignProtected = errors.New("default campaign cannot be modified")
+)
+
 type Campaign struct {
 	ID        uuid.UUID
 	ClientID  uuid.UUID
 	Name      string
+	IsDefault bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -24,12 +30,15 @@ type Campaign struct {
 	events []event.DomainEvent
 }
 
+const DefaultCampaignName = "Default"
+
 func NewCampaign(name string, clientID uuid.UUID) *Campaign {
 	now := time.Now().UTC()
 	c := &Campaign{
 		ID:               uuid.New(),
 		ClientID:         clientID,
 		Name:             name,
+		IsDefault:        false,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 		BackgroundStatus: BackgroundStatusNone,
@@ -39,6 +48,29 @@ func NewCampaign(name string, clientID uuid.UUID) *Campaign {
 		CampaignID: c.ID.String(),
 		ClientID:   clientID.String(),
 		Name:       c.Name,
+		IsDefault:  false,
+		Timestamp:  now,
+	})
+	return c
+}
+
+func NewDefaultCampaign(clientID uuid.UUID) *Campaign {
+	now := time.Now().UTC()
+	c := &Campaign{
+		ID:               uuid.New(),
+		ClientID:         clientID,
+		Name:             DefaultCampaignName,
+		IsDefault:        true,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		BackgroundStatus: BackgroundStatusNone,
+	}
+	c.recordEvent(CampaignCreated{
+		ID:         uuid.New().String(),
+		CampaignID: c.ID.String(),
+		ClientID:   clientID.String(),
+		Name:       c.Name,
+		IsDefault:  true,
 		Timestamp:  now,
 	})
 	return c
@@ -54,7 +86,10 @@ func (c *Campaign) recordEvent(e event.DomainEvent) {
 	c.events = append(c.events, e)
 }
 
-func (c *Campaign) ApplyUpdate(name string) {
+func (c *Campaign) ApplyUpdate(name string) error {
+	if c.IsDefault {
+		return ErrDefaultCampaignProtected
+	}
 	c.Name = name
 	c.UpdatedAt = time.Now().UTC()
 	c.recordEvent(CampaignUpdated{
@@ -64,15 +99,20 @@ func (c *Campaign) ApplyUpdate(name string) {
 		Name:       c.Name,
 		Timestamp:  c.UpdatedAt,
 	})
+	return nil
 }
 
-func (c *Campaign) MarkDeleted() {
+func (c *Campaign) MarkDeleted() error {
+	if c.IsDefault {
+		return ErrDefaultCampaignProtected
+	}
 	c.recordEvent(CampaignDeleted{
 		ID:         uuid.New().String(),
 		CampaignID: c.ID.String(),
 		ClientID:   c.ClientID.String(),
 		Timestamp:  time.Now().UTC(),
 	})
+	return nil
 }
 
 func (c *Campaign) StartBackgroundUpload(pendingKey, filename, contentType string) {

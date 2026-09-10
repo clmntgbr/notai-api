@@ -41,7 +41,9 @@ func (h *UpdateCampaignHandler) Handle(ctx context.Context, cmd UpdateCampaignCo
 			return errors.New("campaign not found")
 		}
 
-		campaign.ApplyUpdate(cmd.Name)
+		if err := campaign.ApplyUpdate(cmd.Name); err != nil {
+			return err
+		}
 
 		if err := h.repo.Update(txCtx, campaign); err != nil {
 			return errors.New("failed to update campaign")

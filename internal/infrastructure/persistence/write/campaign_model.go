@@ -20,6 +20,7 @@ type CampaignModel struct {
 	BackgroundThumbnailKey *string `gorm:"column:background_thumbnail_key"`
 	BackgroundFilename     *string `gorm:"column:background_filename"`
 	BackgroundContentType  *string `gorm:"column:background_content_type"`
+	IsDefault              bool    `gorm:"column:is_default"`
 }
 
 func (CampaignModel) TableName() string {
@@ -56,6 +57,7 @@ func campaignModelFromDomain(c *domaincampaign.Campaign) *CampaignModel {
 		BackgroundThumbnailKey: optionalNonEmpty(c.BackgroundThumbnailKey),
 		BackgroundFilename:     optionalNonEmpty(c.BackgroundFilename),
 		BackgroundContentType:  optionalNonEmpty(c.BackgroundContentType),
+		IsDefault:              c.IsDefault,
 	}
 }
 
@@ -75,5 +77,6 @@ func campaignDomainFromModel(m *CampaignModel) *domaincampaign.Campaign {
 		BackgroundThumbnailKey: derefString(m.BackgroundThumbnailKey),
 		BackgroundFilename:     derefString(m.BackgroundFilename),
 		BackgroundContentType:  derefString(m.BackgroundContentType),
+		IsDefault:              m.IsDefault,
 	}
 }

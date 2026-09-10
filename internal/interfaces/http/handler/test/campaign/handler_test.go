@@ -743,6 +743,42 @@ func TestCampaignHandler_Update_HandlerNotFound(t *testing.T) {
 	}
 }
 
+func TestCampaignHandler_Update_DefaultProtected(t *testing.T) {
+	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{sampleCampaignView()}, errs: []error{nil}}
+	update := &mockUpdateCampaignHandler{err: domaincampaign.ErrDefaultCampaignProtected}
+	h := newCampaignHandler(nil, update, nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Nope"}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	if body["code"] != "DEFAULT_CAMPAIGN_PROTECTED" {
+		t.Fatalf("code: got %#v", body["code"])
+	}
+}
+
+func TestCampaignHandler_Delete_DefaultProtected(t *testing.T) {
+	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{sampleCampaignView()}, errs: []error{nil}}
+	deleteH := &mockDeleteCampaignHandler{err: domaincampaign.ErrDefaultCampaignProtected}
+	h := newCampaignHandler(nil, nil, deleteH, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Delete("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Delete)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodDelete, "/campaigns/"+testutil.TestCampaignID.String(), nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
 func TestCampaignHandler_Update_HandlerError_Internal(t *testing.T) {
 	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{sampleCampaignView()}, errs: []error{nil}}
 	update := &mockUpdateCampaignHandler{err: errors.New("boom")}

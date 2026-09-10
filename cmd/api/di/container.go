@@ -57,7 +57,12 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	campaignReadRepo := read.NewCampaignReadRepository(db)
 	outboxRepo := outbox.NewRepository(db)
 
-	createUserHandler := usercmd.NewCreateUserHandler(userWriteRepo, clientWriteRepo, outboxRepo)
+	createUserHandler := usercmd.NewCreateUserHandler(
+		userWriteRepo,
+		clientWriteRepo,
+		campaignWriteRepo,
+		outboxRepo,
+	)
 	updateUserHandler := usercmd.NewUpdateUserHandler(userWriteRepo, outboxRepo)
 	getUserByExternalIDHandler := usercmd.NewGetUserByExternalIDHandler(userWriteRepo)
 	deleteUserByExternalIDHandler := usercmd.NewDeleteUserByExternalIDHandler(userWriteRepo, outboxRepo)
@@ -66,7 +71,12 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	fetchUserHandler := identitycmd.NewFetchUserHandler(infraClerk.NewUserGateway(env.ClerkSecretKey))
 	getUserByIDHandler := queryuser.NewGetUserByIDHandler(userReadRepo)
 
-	createClientHandler := clientcmd.NewCreateClientHandler(clientWriteRepo, userWriteRepo, outboxRepo)
+	createClientHandler := clientcmd.NewCreateClientHandler(
+		clientWriteRepo,
+		campaignWriteRepo,
+		userWriteRepo,
+		outboxRepo,
+	)
 	updateClientHandler := clientcmd.NewUpdateClientHandler(clientWriteRepo, outboxRepo)
 	deleteClientHandler := clientcmd.NewDeleteClientHandler(clientWriteRepo, outboxRepo)
 	removeClientMemberHandler := clientcmd.NewRemoveClientMemberHandler(clientWriteRepo, userWriteRepo, outboxRepo)

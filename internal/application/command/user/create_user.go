@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
 	"go-api/internal/domain/port"
 	domainuser "go-api/internal/domain/user"
@@ -20,20 +21,23 @@ type CreateUserCommand struct {
 }
 
 type CreateUserHandler struct {
-	userRepo   domainuser.UserWriteRepository
-	clientRepo domainclient.ClientWriteRepository
-	outbox     port.OutboxRepository
+	userRepo     domainuser.UserWriteRepository
+	clientRepo   domainclient.ClientWriteRepository
+	campaignRepo domaincampaign.CampaignWriteRepository
+	outbox       port.OutboxRepository
 }
 
 func NewCreateUserHandler(
 	userRepo domainuser.UserWriteRepository,
 	clientRepo domainclient.ClientWriteRepository,
+	campaignRepo domaincampaign.CampaignWriteRepository,
 	outbox port.OutboxRepository,
 ) *CreateUserHandler {
 	return &CreateUserHandler{
-		userRepo:   userRepo,
-		clientRepo: clientRepo,
-		outbox:     outbox,
+		userRepo:     userRepo,
+		clientRepo:   clientRepo,
+		campaignRepo: campaignRepo,
+		outbox:       outbox,
 	}
 }
 
@@ -51,12 +55,18 @@ func (h *CreateUserHandler) Handle(ctx context.Context, cmd CreateUserCommand) (
 			return err
 		}
 
+		defaultCampaign := domaincampaign.NewDefaultCampaign(client.ID)
+		if err := h.campaignRepo.Save(txCtx, defaultCampaign); err != nil {
+			return err
+		}
+
 		u.SetCurrentClient(client.ID)
 		if err := h.userRepo.Update(txCtx, u); err != nil {
 			return err
 		}
 
 		events := append(u.PullEvents(), client.PullEvents()...)
+		events = append(events, defaultCampaign.PullEvents()...)
 		return h.outbox.StoreEvents(txCtx, events)
 	})
 	if err != nil {

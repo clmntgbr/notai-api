@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
 	"go-api/internal/domain/port"
 	domainuser "go-api/internal/domain/user"
@@ -17,20 +18,23 @@ type CreateClientCommand struct {
 }
 
 type CreateClientHandler struct {
-	clientRepo domainclient.ClientWriteRepository
-	userRepo   domainuser.UserWriteRepository
-	outbox     port.OutboxRepository
+	clientRepo   domainclient.ClientWriteRepository
+	campaignRepo domaincampaign.CampaignWriteRepository
+	userRepo     domainuser.UserWriteRepository
+	outbox       port.OutboxRepository
 }
 
 func NewCreateClientHandler(
 	clientRepo domainclient.ClientWriteRepository,
+	campaignRepo domaincampaign.CampaignWriteRepository,
 	userRepo domainuser.UserWriteRepository,
 	outbox port.OutboxRepository,
 ) *CreateClientHandler {
 	return &CreateClientHandler{
-		clientRepo: clientRepo,
-		userRepo:   userRepo,
-		outbox:     outbox,
+		clientRepo:   clientRepo,
+		campaignRepo: campaignRepo,
+		userRepo:     userRepo,
+		outbox:       outbox,
 	}
 }
 
@@ -53,6 +57,11 @@ func (h *CreateClientHandler) Handle(
 			return err
 		}
 
+		defaultCampaign := domaincampaign.NewDefaultCampaign(client.ID)
+		if err := h.campaignRepo.Save(txCtx, defaultCampaign); err != nil {
+			return err
+		}
+
 		user, err := h.userRepo.GetByID(txCtx, cmd.CreatorUserID)
 		if err != nil {
 			return errors.New("failed to get creator user")
@@ -66,7 +75,8 @@ func (h *CreateClientHandler) Handle(
 			return errors.New("failed to set current client")
 		}
 
-		events := append(client.PullEvents(), user.PullEvents()...)
+		events := append(client.PullEvents(), defaultCampaign.PullEvents()...)
+		events = append(events, user.PullEvents()...)
 		return h.outbox.StoreEvents(txCtx, events)
 	})
 	if err != nil {

@@ -216,6 +216,12 @@ func (h *CampaignHandler) Update(c fiber.Ctx) error {
 		Name: req.Name,
 	})
 	if err != nil {
+		if errors.Is(err, domaincampaign.ErrDefaultCampaignProtected) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"message": "Default campaign cannot be modified",
+				"code":    "DEFAULT_CAMPAIGN_PROTECTED",
+			})
+		}
 		if err.Error() == "campaign not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})
 		}
@@ -257,6 +263,12 @@ func (h *CampaignHandler) Delete(c fiber.Ctx) error {
 	}
 
 	if err := h.deleteHandler.Handle(c.Context(), campaigncmd.DeleteCampaignCommand{ID: id}); err != nil {
+		if errors.Is(err, domaincampaign.ErrDefaultCampaignProtected) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"message": "Default campaign cannot be modified",
+				"code":    "DEFAULT_CAMPAIGN_PROTECTED",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to delete campaign"})
 	}
 

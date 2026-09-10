@@ -27,6 +27,7 @@ type CampaignView struct {
 	ID        uuid.UUID
 	ClientID  uuid.UUID
 	Name      string
+	IsDefault bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 

@@ -24,6 +24,7 @@ type campaignRow struct {
 	BackgroundThumbnailKey *string
 	BackgroundFilename     *string
 	BackgroundContentType  *string
+	IsDefault              bool
 }
 
 func (campaignRow) TableName() string { return "campaigns" }
@@ -36,7 +37,7 @@ func NewCampaignReadRepository(db *gorm.DB) domaincampaign.CampaignReadRepositor
 	return &campaignReadRepository{db: db}
 }
 
-const campaignSelectCols = "id, client_id, name, created_at, updated_at, " +
+const campaignSelectCols = "id, client_id, name, created_at, updated_at, is_default, " +
 	"background_status, background_pending_key, background_thumbnail_key, " +
 	"background_filename, background_content_type"
 
@@ -72,7 +73,8 @@ func (r *campaignReadRepository) FindPageByClientID(
 
 	db := r.db.WithContext(ctx).
 		Model(&campaignRow{}).
-		Where("client_id = ?", clientID)
+		Where("client_id = ?", clientID).
+		Where("is_default = false")
 
 	if query.Search != "" {
 		db = db.Where("name ILIKE ?", "%"+query.Search+"%")
@@ -111,6 +113,7 @@ func toCampaignView(row campaignRow) *domaincampaign.CampaignView {
 		ID:                     row.ID,
 		ClientID:               row.ClientID,
 		Name:                   row.Name,
+		IsDefault:              row.IsDefault,
 		CreatedAt:              row.CreatedAt,
 		UpdatedAt:              row.UpdatedAt,
 		BackgroundStatus:       status,

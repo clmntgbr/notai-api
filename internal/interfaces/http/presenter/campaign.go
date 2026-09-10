@@ -12,6 +12,7 @@ type CampaignDetailResponse struct {
 	ID                     string    `json:"id"`
 	ClientID               string    `json:"clientId"`
 	Name                   string    `json:"name"`
+	IsDefault              bool      `json:"isDefault"`
 	BackgroundStatus       string    `json:"backgroundStatus"`
 	BackgroundThumbnailURL string    `json:"backgroundThumbnailUrl,omitempty"`
 	CreatedAt              time.Time `json:"createdAt"`
@@ -23,6 +24,7 @@ func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) Campaig
 		ID:               view.ID.String(),
 		ClientID:         view.ClientID.String(),
 		Name:             view.Name,
+		IsDefault:        view.IsDefault,
 		BackgroundStatus: backgroundStatusOrNone(view.BackgroundStatus),
 		BackgroundThumbnailURL: backgroundThumbnailURL(
 			view.ID.String(),
@@ -40,6 +42,7 @@ func NewCampaignDetailResponseFromEntity(campaign domaincampaign.Campaign) Campa
 		ID:               campaign.ID.String(),
 		ClientID:         campaign.ClientID.String(),
 		Name:             campaign.Name,
+		IsDefault:        campaign.IsDefault,
 		BackgroundStatus: backgroundStatusOrNone(campaign.BackgroundStatus),
 		BackgroundThumbnailURL: backgroundThumbnailURL(
 			campaign.ID.String(),

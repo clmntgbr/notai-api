@@ -36,7 +36,9 @@ func (h *DeleteCampaignHandler) Handle(ctx context.Context, cmd DeleteCampaignCo
 			return nil
 		}
 
-		campaign.MarkDeleted()
+		if err := campaign.MarkDeleted(); err != nil {
+			return err
+		}
 		events := campaign.PullEvents()
 
 		if err := h.repo.Delete(txCtx, campaign.ID); err != nil {

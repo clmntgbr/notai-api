@@ -14,6 +14,7 @@ type CampaignCreated struct {
 	CampaignID string    `json:"campaignId"`
 	ClientID   string    `json:"clientId"`
 	Name       string    `json:"name"`
+	IsDefault  bool      `json:"isDefault"`
 	Timestamp  time.Time `json:"timestamp"`
 }
 
