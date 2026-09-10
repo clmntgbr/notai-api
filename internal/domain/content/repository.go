@@ -38,5 +38,4 @@ type ContentView struct {
 	Status       Status
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
-	AnalyzedAt   *time.Time
 }

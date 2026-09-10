@@ -9,18 +9,17 @@ import (
 )
 
 type ContentModel struct {
-	ID           uuid.UUID  `gorm:"column:id;primaryKey"`
-	CampaignID   uuid.UUID  `gorm:"column:campaign_id"`
-	ClientID     uuid.UUID  `gorm:"column:client_id"`
-	Filename     string     `gorm:"column:filename"`
-	ContentType  string     `gorm:"column:content_type"`
-	ObjectKey    string     `gorm:"column:object_key"`
-	ThumbnailKey *string    `gorm:"column:thumbnail_key"`
-	SizeBytes    *int64     `gorm:"column:size_bytes"`
-	Status       string     `gorm:"column:status"`
-	AnalyzedAt   *time.Time `gorm:"column:analyzed_at"`
-	CreatedAt    time.Time  `gorm:"column:created_at"`
-	UpdatedAt    time.Time  `gorm:"column:updated_at"`
+	ID           uuid.UUID `gorm:"column:id;primaryKey"`
+	CampaignID   uuid.UUID `gorm:"column:campaign_id"`
+	ClientID     uuid.UUID `gorm:"column:client_id"`
+	Filename     string    `gorm:"column:filename"`
+	ContentType  string    `gorm:"column:content_type"`
+	ObjectKey    string    `gorm:"column:object_key"`
+	ThumbnailKey *string   `gorm:"column:thumbnail_key"`
+	SizeBytes    *int64    `gorm:"column:size_bytes"`
+	Status       string    `gorm:"column:status"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
 
 func (ContentModel) TableName() string {
@@ -38,7 +37,6 @@ func contentModelFromDomain(c *domaincontent.Content) *ContentModel {
 		ThumbnailKey: c.ThumbnailKey,
 		SizeBytes:    c.SizeBytes,
 		Status:       string(c.Status),
-		AnalyzedAt:   c.AnalyzedAt,
 		CreatedAt:    c.CreatedAt,
 		UpdatedAt:    c.UpdatedAt,
 	}
@@ -55,7 +53,6 @@ func contentDomainFromModel(m *ContentModel) *domaincontent.Content {
 		ThumbnailKey: m.ThumbnailKey,
 		SizeBytes:    m.SizeBytes,
 		Status:       domaincontent.Status(m.Status),
-		AnalyzedAt:   m.AnalyzedAt,
 		CreatedAt:    m.CreatedAt,
 		UpdatedAt:    m.UpdatedAt,
 	}

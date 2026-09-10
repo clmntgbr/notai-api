@@ -88,9 +88,8 @@ type Content struct {
 
 	Status Status
 
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	AnalyzedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	events []event.DomainEvent
 }
@@ -212,7 +211,6 @@ func (c *Content) MarkFailed() error {
 	now := time.Now().UTC()
 	c.Status = StatusFailed
 	c.UpdatedAt = now
-	c.AnalyzedAt = &now
 	c.recordStatusChanged(now)
 	return nil
 }

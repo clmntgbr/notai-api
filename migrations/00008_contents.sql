@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS contents (
     thumbnail_key TEXT NULL,
     size_bytes BIGINT NULL,
     status TEXT NOT NULL DEFAULT 'pending_upload',
-    analyzed_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT contents_status_check CHECK (

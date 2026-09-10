@@ -22,7 +22,6 @@ type contentRow struct {
 	ThumbnailKey *string
 	SizeBytes    *int64
 	Status       string
-	AnalyzedAt   *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -38,7 +37,7 @@ func NewContentReadRepository(db *gorm.DB) domaincontent.ContentReadRepository {
 }
 
 const contentSelectCols = "id, campaign_id, client_id, filename, content_type, object_key, " +
-	"thumbnail_key, size_bytes, status, analyzed_at, created_at, updated_at"
+	"thumbnail_key, size_bytes, status, created_at, updated_at"
 
 func (r *contentReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*domaincontent.ContentView, error) {
 	var row contentRow
@@ -110,6 +109,5 @@ func toContentView(row contentRow) *domaincontent.ContentView {
 		Status:       domaincontent.Status(row.Status),
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
-		AnalyzedAt:   row.AnalyzedAt,
 	}
 }

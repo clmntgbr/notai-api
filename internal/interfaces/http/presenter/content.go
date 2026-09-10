@@ -10,17 +10,16 @@ import (
 )
 
 type ContentDetailResponse struct {
-	ID           string     `json:"id"`
-	CampaignID   string     `json:"campaignId"`
-	ClientID     string     `json:"clientId"`
-	Filename     string     `json:"filename"`
-	ContentType  string     `json:"contentType"`
-	Status       string     `json:"status"`
-	SizeBytes    *int64     `json:"sizeBytes,omitempty"`
-	ThumbnailURL string     `json:"thumbnailUrl,omitempty"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
-	AnalyzedAt   *time.Time `json:"analyzedAt,omitempty"`
+	ID           string    `json:"id"`
+	CampaignID   string    `json:"campaignId"`
+	ClientID     string    `json:"clientId"`
+	Filename     string    `json:"filename"`
+	ContentType  string    `json:"contentType"`
+	Status       string    `json:"status"`
+	SizeBytes    *int64    `json:"sizeBytes,omitempty"`
+	ThumbnailURL string    `json:"thumbnailUrl,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDetailResponse {
@@ -35,7 +34,6 @@ func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDet
 		ThumbnailURL: contentThumbnailURL(view),
 		CreatedAt:    view.CreatedAt,
 		UpdatedAt:    view.UpdatedAt,
-		AnalyzedAt:   view.AnalyzedAt,
 	}
 }
 
