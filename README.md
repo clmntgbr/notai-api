@@ -1,16 +1,19 @@
-# Go API Template
+# NotAI API
 
-Go/Fiber API template with **Clean Architecture**, **CQRS**, **Outbox pattern**, **RabbitMQ**, **Centrifugo**, **PostgreSQL**, and **Clerk** authentication.
+Go/Fiber backend for NotAI: **Clean Architecture**, **CQRS**, transactional **outbox**, **RabbitMQ**, **Centrifugo**, **PostgreSQL**, and **Clerk** auth.
+
+Multi-tenant around **clients** (membership via `user_clients`) and **campaigns** scoped by the user’s `currentClientId`.
 
 ## Features
 
 - CQRS: command / query / event handlers under `internal/application`
-- Domain events (`user.created.v1`) + transactional outbox
+- Aggregates: `user`, `client`, `campaign` with versioned domain events + outbox
+- User signup (Clerk webhook or JIT on first JWT) creates a personal client and sets `currentClientId` in the same transaction
 - RabbitMQ worker (outbox relay + consumer + handler registry) on `domain.events`
-- Centrifugo realtime (outbox → worker → publish to `users:{id}`)
-- Offset pagination + query validation helpers
+- Centrifugo realtime (outbox → worker → `users:{id}`)
+- Offset pagination for client / campaign lists
 - Clerk JWT auth + webhook sync (Svix)
-- Docker Compose local stack (API, worker, Postgres, RabbitMQ, Centrifugo, ngrok)
+- Docker Compose local stack (API, worker, Postgres, RabbitMQ, Centrifugo, MinIO, Mailpit, ngrok)
 
 ## Tech Stack
 
@@ -22,7 +25,7 @@ Go/Fiber API template with **Clean Architecture**, **CQRS**, **Outbox pattern**,
 | Auth | Clerk (JWKS + webhooks) |
 | Messaging | RabbitMQ (topic exchange `domain.events`) |
 | Realtime | Centrifugo v5 |
-| CLI | Cobra |
+| CLI | Cobra (goose migrations) |
 | Dev | Docker, Air, golangci-lint |
 
 ## Architecture
@@ -33,11 +36,11 @@ cmd/
   worker/       Outbox relay + RabbitMQ consumer
   cli/          Migrations
 internal/
-  domain/                 Aggregates, events, ports, paginate
+  domain/                 user, client, campaign, event, paginate, port
   application/
     command/              Write-side handlers
     query/                Read-side handlers
-    event/                Async event handlers (+ realtime publish)
+    event/                Async handlers (+ realtime publish)
     realtime/             WS type helpers (entity.action)
     registry/             Event handler registry
   infrastructure/
@@ -46,16 +49,30 @@ internal/
     centrifugo
     clerk|config
   interfaces/http/        Handlers, middleware, DTO, presenter, validation
+migrations/               Goose SQL (schema source of truth)
 ```
+
+### Tenant model
+
+```
+User ──< user_clients >── Client ──< Campaign
+  │
+  └── current_client_id → Client (active tenant)
+```
+
+- A user can belong to several clients; a client has several members.
+- Campaigns always use `httpctx.GetCurrentClientID()` — never a `clientId` from the body.
+- Switch active client: `PUT /api/users/me/current-client` with `{ "clientId" }`.
+- Unknown id and non-member both return **404** (no existence leak). Cross-client campaign access for a member of the other client returns **409** + `WRONG_ORGANIZATION`.
 
 ### Sync command + async event flow
 
 ```
 HTTP / webhook
-  → CreateUser command (same DB transaction)
-      → save User aggregate
+  → command (same DB transaction)
+      → save aggregate(s)
       → StoreEvents(outbox)
-  → 201 response
+  → HTTP response
 
 worker (outbox relay)
   → poll unpublished outbox rows
@@ -64,18 +81,23 @@ worker (outbox relay)
 
 worker (consumer)
   → HandlerRegistry.Dispatch(event type)
-  → log / notify handlers
-  → publish_user_*_realtime → Centrifugo users:{userId}
+  → log / notify / publish_*_realtime → Centrifugo users:{userId}
 ```
 
-Supported domain events: `user.created.v1`, `user.updated.v1`, `user.deleted.v1` (all written to outbox on the matching command).
+### Domain events (outbox)
+
+| Aggregate | Types |
+|---|---|
+| User | `user.created.v1`, `user.updated.v1`, `user.deleted.v1`, `user.current_client_changed.v1` |
+| Client | `client.created.v1`, `client.updated.v1`, `client.deleted.v1`, `client.member_added.v1`, `client.member_removed.v1` |
+| Campaign | `campaign.created.v1`, `campaign.updated.v1`, `campaign.deleted.v1` |
 
 ### Idempotence + retry / DLQ
 
-- Each domain event has a stable `eventId` (set when recorded on the aggregate).
-- Handlers are wrapped with dedup on `(event_id, handler_name)` via `processed_events`.
-- RabbitMQ topology: `domain.events` → `domain.events.retry` (TTL) → back to main; non-retryable / max attempts → `domain.events.dlq`.
-- Never `Nack(requeue=true)` — retries go through the TTL retry queue.
+- Stable `eventId` when the event is recorded on the aggregate.
+- Dedup on `(event_id, handler_name)` via `processed_events`.
+- Topology: `domain.events` → `domain.events.retry` (TTL) → main; poison / max attempts → `domain.events.dlq`.
+- Never `Nack(requeue=true)`.
 
 If queue declare fails after changing args, delete the old queues (or recreate the RabbitMQ volume) then restart the worker.
 
@@ -83,7 +105,7 @@ If queue declare fails after changing args, delete the old queues (or recreate t
 
 ```bash
 cp .env.dist .env
-# fill Clerk keys
+# fill Clerk keys (+ NGROK_AUTHTOKEN if you need webhooks)
 
 make dev
 make migrate
@@ -91,11 +113,13 @@ make migrate
 
 | Service | Host port | Notes |
 |---|---|---|
-| API | `4000` | Air hot reload |
-| Worker | — | relay + consumer |
+| API | `4000` | → container `3000`, Air hot reload |
+| Worker | — | outbox relay + consumer |
 | Postgres | `9543` | |
-| RabbitMQ | `5672` / UI `15672` | user/password from `.env` |
+| RabbitMQ | `9002` / UI `9003` | user/password from `.env` |
 | Centrifugo | `8000` | WS + HTTP API |
+| MinIO | `9000` / console `9001` | |
+| Mailpit | SMTP `9025` / UI `9026` | |
 | ngrok | `4040` | webhook tunnel |
 
 ## Makefile
@@ -103,22 +127,24 @@ make migrate
 | Command | Description |
 |---|---|
 | `make dev` | Start compose.dev stack |
+| `make restart` | Restart **api** and **worker** only |
 | `make build` | Start stack with `--build` |
 | `make dev-down` | Stop stack |
-| `make dev-logs` | Follow API + worker logs |
-| `make worker-logs` | Follow worker logs only |
+| `make api-logs` | Follow API logs |
+| `make worker-logs` | Follow worker logs |
 | `make tests` | Handler HTTP tests (in api container) |
 | `make coverage` | Handler coverage profile |
 | `make coverage-html` | HTML coverage report |
 | `make migrate` | Apply SQL migrations + schema drift check |
 | `make migrate-check` | Fail if persistence models ≠ DB columns |
 | `make migrate-status` | Goose migration status |
+| `make migrate-down` | Roll back one migration |
 | `make lint` | golangci-lint --fix |
 | `make shell` | Shell into API container |
 
 ## Testing
 
-Handler HTTP tests live under `internal/interfaces/http/handler/test/`. See [docs/handler-tests.md](docs/handler-tests.md).
+Handler HTTP tests live under `internal/interfaces/http/handler/test/` (`user`, `client`, `campaign`, `user_webhook`, `realtime`). See [docs/handler-tests.md](docs/handler-tests.md).
 
 ```bash
 go test ./internal/interfaces/http/handler/test/... -race \
@@ -129,30 +155,53 @@ CI enforces ≥95% handler statement coverage (Codecov flag `handler`, patch 100
 
 ## API
 
+All `/api/*` routes below (except health) require `Authorization: Bearer <Clerk JWT>`.
+
 ### Health
 
 - `GET /livez`, `/readyz`, `/startupz`
 
-### Protected
+### User
 
-- `GET /api/users/me` — Bearer Clerk JWT (query side / read repository)
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/users/me` | Current user (`currentClientId`, …) |
+| `PUT` | `/api/users/me/current-client` | Switch active client — body `{ "clientId" }` |
+
+### Clients
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/clients` | List memberships (paginated) |
+| `POST` | `/api/clients` | Create client (adds creator + sets current) |
+| `GET` | `/api/clients/:id` | Get by id |
+| `PUT` | `/api/clients/:id` | Update |
+| `DELETE` | `/api/clients/:id` | Delete |
+| `DELETE` | `/api/clients/:id/members/:userId` | Remove member (clears their current if needed) |
+
+### Campaigns
+
+Scoped by the caller’s `currentClientId`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/campaigns` | List for current client (paginated) |
+| `POST` | `/api/campaigns` | Create — body `{ "name" }` |
+| `GET` | `/api/campaigns/:id` | Get (409 `WRONG_ORGANIZATION` if other client you belong to) |
+| `PUT` | `/api/campaigns/:id` | Update |
+| `DELETE` | `/api/campaigns/:id` | Delete |
+
+### Realtime
+
 - `GET /api/realtime/connection` — Centrifugo JWT + channel + `wsUrl`
 
 ### Webhooks
 
 - `POST /webhooks/clerk` — Svix-verified; `user.created` / `updated` / `deleted`
 
-## CQRS notes
-
-- Commands write through aggregates (`NewUser` records `UserCreated`) and persist events in `outbox_events` in the **same** GORM transaction.
-- Queries use `UserReadRepository` (SQL projection / `UserView`), not domain mutation.
-- Event types are versioned (`user.created.v1`).
-- One worker process runs outbox relay + consumer; scale the worker horizontally as needed.
-- Start with a single queue (`domain.events`); add comma-separated routing keys as you add aggregates.
-
 ## Environment
 
-See `.env.dist`. Messaging / realtime:
+See [`.env.dist`](.env.dist). Messaging / realtime:
 
 - `RABBITMQ_URL`
 - `RABBITMQ_EXCHANGE` (default `domain.events`)
@@ -169,15 +218,15 @@ See `.env.dist`. Messaging / realtime:
 2. Add command/query handlers under `internal/application/...`
 3. Implement write/read repos under `internal/infrastructure/persistence/`
 4. Register event handlers in `cmd/worker/di` (including `publish_*_realtime` if needed)
-5. Wire HTTP in `cmd/api/di` + `routes.go`
-6. Add a SQL migration in `migrations/` and a persistence model under `internal/infrastructure/persistence/`
-7. Run `make migrate` (applies SQL + fails on model/DB drift)
+5. Wire HTTP in `cmd/api/di` + `routes.go` (+ handler tests under `handler/test/<resource>/`)
+6. Add a SQL migration in `migrations/` and matching persistence models
+7. Broaden `RABBITMQ_ROUTING_KEY` if you add a new event prefix
+8. Run `make migrate` (SQL + model/DB drift check)
 
-## Architecture rules
+## Docs
 
-Conventions live in [`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc).
-
-- User / auth: [docs/user.md](docs/user.md)
+- Architecture conventions: [`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc)
+- User / auth / current client: [docs/user.md](docs/user.md)
 - Webhooks: [docs/webhooks.md](docs/webhooks.md)
 - Realtime: [docs/realtime.md](docs/realtime.md)
 - Handler tests: [docs/handler-tests.md](docs/handler-tests.md)
