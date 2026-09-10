@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	campaigncmd "go-api/internal/application/command/campaign"
 	"go-api/internal/interfaces/http/handler"
 	"go-api/internal/interfaces/http/middleware"
 	"go-api/internal/interfaces/http/testutil"
@@ -17,19 +16,30 @@ import (
 
 const testMediaBucket = "media"
 
+type processCall struct {
+	ObjectKey   string
+	ContentType string
+	Size        int64
+}
+
 type mockProcessHandler struct {
 	mu      sync.Mutex
-	calls   []campaigncmd.ProcessBackgroundUploadCommand
+	calls   []processCall
 	err     error
 	waiters []chan struct{}
 }
 
 func (m *mockProcessHandler) Handle(
 	_ context.Context,
-	cmd campaigncmd.ProcessBackgroundUploadCommand,
+	objectKey, contentType string,
+	size int64,
 ) error {
 	m.mu.Lock()
-	m.calls = append(m.calls, cmd)
+	m.calls = append(m.calls, processCall{
+		ObjectKey:   objectKey,
+		ContentType: contentType,
+		Size:        size,
+	})
 	waiters := m.waiters
 	m.waiters = nil
 	err := m.err

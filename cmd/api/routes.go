@@ -36,6 +36,7 @@ func setupAPIRoutes(app *fiber.App, container *di.Container) {
 	setupUserRoutes(protected, container)
 	setupClientRoutes(protected, container)
 	setupCampaignRoutes(protected, container)
+	setupContentRoutes(protected, container)
 	setupRealtimeRoutes(protected, container)
 }
 
@@ -66,4 +67,9 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 	api.Post("/campaigns/:id/background/presign", container.CampaignHandler.PresignBackground)
 	api.Delete("/campaigns/:id/background", container.CampaignHandler.ClearBackground)
 	api.Get("/campaigns/:id/thumbnail", container.CampaignHandler.GetThumbnail)
+	api.Post("/campaigns/:id/contents/presign", container.ContentHandler.Presign)
+}
+
+func setupContentRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/contents/:id/thumbnail", container.ContentHandler.GetThumbnail)
 }

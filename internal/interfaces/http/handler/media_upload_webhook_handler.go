@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	campaigncmd "go-api/internal/application/command/campaign"
 	domaincampaign "go-api/internal/domain/campaign"
 	"go-api/internal/interfaces/http/dto"
 	"go-api/internal/interfaces/http/validation"
@@ -16,12 +15,12 @@ import (
 
 type MediaUploadWebhookHandler struct {
 	mediaBucket    string
-	processHandler mediaUploadProcessHandler
+	processHandler mediaObjectCreatedHandler
 }
 
 func NewMediaUploadWebhookHandler(
 	mediaBucket string,
-	processHandler mediaUploadProcessHandler,
+	processHandler mediaObjectCreatedHandler,
 ) *MediaUploadWebhookHandler {
 	return &MediaUploadWebhookHandler{
 		mediaBucket:    mediaBucket,
@@ -67,11 +66,12 @@ func (h *MediaUploadWebhookHandler) process(ctx context.Context, event dto.Objec
 			continue
 		}
 
-		err = h.processHandler.Handle(ctx, campaigncmd.ProcessBackgroundUploadCommand{
-			ObjectKey:   decodedKey,
-			ContentType: record.S3.Object.ContentType,
-			Size:        record.S3.Object.Size,
-		})
+		err = h.processHandler.Handle(
+			ctx,
+			decodedKey,
+			record.S3.Object.ContentType,
+			record.S3.Object.Size,
+		)
 		if err != nil {
 			log.Printf("MinIO webhook: process failed key=%q: %v", decodedKey, err)
 		}

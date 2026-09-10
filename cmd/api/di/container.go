@@ -6,10 +6,13 @@ import (
 	authcmd "go-api/internal/application/command/auth"
 	campaigncmd "go-api/internal/application/command/campaign"
 	clientcmd "go-api/internal/application/command/client"
+	contentcmd "go-api/internal/application/command/content"
 	identitycmd "go-api/internal/application/command/identity"
+	"go-api/internal/application/command/mediaupload"
 	usercmd "go-api/internal/application/command/user"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
+	querycontent "go-api/internal/application/query/content"
 	queryuser "go-api/internal/application/query/user"
 	"go-api/internal/infrastructure/centrifugo"
 	infraClerk "go-api/internal/infrastructure/clerk"
@@ -34,6 +37,7 @@ type Container struct {
 	UserHandler                  *httphandler.UserHandler
 	ClientHandler                *httphandler.ClientHandler
 	CampaignHandler              *httphandler.CampaignHandler
+	ContentHandler               *httphandler.ContentHandler
 	RealtimeHandler              *httphandler.RealtimeHandler
 }
 
@@ -55,6 +59,8 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	clientReadRepo := read.NewClientReadRepository(db)
 	campaignWriteRepo := write.NewCampaignWriteRepository(db)
 	campaignReadRepo := read.NewCampaignReadRepository(db)
+	contentWriteRepo := write.NewContentWriteRepository(db)
+	contentReadRepo := read.NewContentReadRepository(db)
 	outboxRepo := outbox.NewRepository(db)
 
 	createUserHandler := usercmd.NewCreateUserHandler(
@@ -102,8 +108,25 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		objectStorage,
 		thumbnailer,
 	)
+	presignContentsHandler := contentcmd.NewPresignContentsHandler(
+		campaignWriteRepo,
+		contentWriteRepo,
+		outboxRepo,
+		objectStorage,
+	)
+	processContentUploadHandler := contentcmd.NewProcessUploadHandler(
+		contentWriteRepo,
+		outboxRepo,
+		objectStorage,
+		thumbnailer,
+	)
+	mediaObjectCreatedDispatcher := mediaupload.NewObjectCreatedDispatcher(
+		processBackgroundUploadHandler,
+		processContentUploadHandler,
+	)
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
+	getContentByIDHandler := querycontent.NewGetContentByIDHandler(contentReadRepo)
 
 	return &Container{
 		AuthenticateMiddleware: middleware.NewAuthenticateMiddleware(
@@ -123,7 +146,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		),
 		MediaUploadWebhookHandler: httphandler.NewMediaUploadWebhookHandler(
 			env.StorageBucket,
-			processBackgroundUploadHandler,
+			mediaObjectCreatedDispatcher,
 		),
 		UserHandler: httphandler.NewUserHandler(getUserByIDHandler, setCurrentClientHandler),
 		ClientHandler: httphandler.NewClientHandler(
@@ -143,6 +166,11 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			getClientByIDHandler,
 			presignBackgroundHandler,
 			clearBackgroundHandler,
+			objectStorage,
+		),
+		ContentHandler: httphandler.NewContentHandler(
+			presignContentsHandler,
+			getContentByIDHandler,
 			objectStorage,
 		),
 		RealtimeHandler: httphandler.NewRealtimeHandler(centrifugo.NewConnectionInfoCreator(env)),

@@ -3,13 +3,15 @@ package di
 import (
 	"log"
 
-	"go-api/internal/application/event/dedup"
 	eventcampaign "go-api/internal/application/event/campaign"
 	eventclient "go-api/internal/application/event/client"
+	eventcontent "go-api/internal/application/event/content"
+	"go-api/internal/application/event/dedup"
 	eventuser "go-api/internal/application/event/user"
 	"go-api/internal/application/registry"
 	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
+	domaincontent "go-api/internal/domain/content"
 	domainuser "go-api/internal/domain/user"
 	"go-api/internal/infrastructure/centrifugo"
 	"go-api/internal/infrastructure/config"
@@ -52,6 +54,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	publishUserRealtime := eventuser.NewPublishRealtimeHandler(realtimePublisher)
 	publishClientRealtime := eventclient.NewPublishRealtimeHandler(realtimePublisher)
 	publishCampaignRealtime := eventcampaign.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
+	publishContentRealtime := eventcontent.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
 	reg := registry.NewHandlerRegistry()
 
 	reg.Register(domainuser.EventTypeUserCreated, dedup.With(
@@ -190,6 +193,37 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		dedupRepo,
 		"publish_campaign_background_updated_realtime",
 		publishCampaignRealtime.OnBackgroundUpdated,
+	))
+
+	reg.Register(domaincontent.EventTypeContentCreated, dedup.With(
+		dedupRepo,
+		"content_created",
+		eventcontent.NewContentCreatedHandler().Handle,
+	))
+	reg.Register(domaincontent.EventTypeContentCreated, dedup.With(
+		dedupRepo,
+		"publish_content_created_realtime",
+		publishContentRealtime.OnCreated,
+	))
+	reg.Register(domaincontent.EventTypeContentUploaded, dedup.With(
+		dedupRepo,
+		"content_uploaded",
+		eventcontent.NewContentUploadedHandler().Handle,
+	))
+	reg.Register(domaincontent.EventTypeContentUploaded, dedup.With(
+		dedupRepo,
+		"publish_content_uploaded_realtime",
+		publishContentRealtime.OnUploaded,
+	))
+	reg.Register(domaincontent.EventTypeContentStatusChanged, dedup.With(
+		dedupRepo,
+		"content_status_changed",
+		eventcontent.NewContentStatusChangedHandler().Handle,
+	))
+	reg.Register(domaincontent.EventTypeContentStatusChanged, dedup.With(
+		dedupRepo,
+		"publish_content_status_changed_realtime",
+		publishContentRealtime.OnStatusChanged,
 	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)

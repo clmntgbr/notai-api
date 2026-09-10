@@ -48,6 +48,9 @@ func (h *ProcessBackgroundUploadHandler) Handle(
 	if objectKey == "" || domaincampaign.IsThumbnailObjectKey(objectKey) {
 		return nil
 	}
+	if strings.Contains(objectKey, "/contents/") {
+		return nil
+	}
 
 	campaign, err := h.repo.GetByBackgroundPendingKey(ctx, objectKey)
 	if err != nil {

@@ -8,10 +8,12 @@ const (
 	ActionMemberAdded          = "member_added"
 	ActionMemberRemoved        = "member_removed"
 	ActionBackgroundUpdated    = "background_updated"
+	ActionStatusChanged        = "status_changed"
 
 	EntityUser     = "user"
 	EntityClient   = "client"
 	EntityCampaign = "campaign"
+	EntityContent  = "content"
 )
 
 func EventType(entity, action string) string {

@@ -1,11 +1,7 @@
 package handler
 
-import (
-	"context"
+import "context"
 
-	campaigncmd "go-api/internal/application/command/campaign"
-)
-
-type mediaUploadProcessHandler interface {
-	Handle(ctx context.Context, cmd campaigncmd.ProcessBackgroundUploadCommand) error
+type mediaObjectCreatedHandler interface {
+	Handle(ctx context.Context, objectKey, contentType string, size int64) error
 }
