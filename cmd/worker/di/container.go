@@ -181,6 +181,16 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"publish_campaign_deleted_realtime",
 		publishCampaignRealtime.OnDeleted,
 	))
+	reg.Register(domaincampaign.EventTypeCampaignBackgroundUpdated, dedup.With(
+		dedupRepo,
+		"campaign_background_updated",
+		eventcampaign.NewCampaignBackgroundUpdatedHandler().Handle,
+	))
+	reg.Register(domaincampaign.EventTypeCampaignBackgroundUpdated, dedup.With(
+		dedupRepo,
+		"publish_campaign_background_updated_realtime",
+		publishCampaignRealtime.OnBackgroundUpdated,
+	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)
 

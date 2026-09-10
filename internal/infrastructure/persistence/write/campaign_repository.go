@@ -47,3 +47,18 @@ func (r *campaignWriteRepository) GetByID(ctx context.Context, id uuid.UUID) (*d
 	}
 	return campaignDomainFromModel(&model), nil
 }
+
+func (r *campaignWriteRepository) GetByBackgroundPendingKey(
+	ctx context.Context,
+	pendingKey string,
+) (*domaincampaign.Campaign, error) {
+	var model CampaignModel
+	err := DBWithContext(ctx, r.db).First(&model, "background_pending_key = ?", pendingKey).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return campaignDomainFromModel(&model), nil
+}

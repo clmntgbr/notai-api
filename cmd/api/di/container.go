@@ -14,9 +14,11 @@ import (
 	"go-api/internal/infrastructure/centrifugo"
 	infraClerk "go-api/internal/infrastructure/clerk"
 	"go-api/internal/infrastructure/config"
+	"go-api/internal/infrastructure/imaging"
 	"go-api/internal/infrastructure/persistence/outbox"
 	"go-api/internal/infrastructure/persistence/read"
 	"go-api/internal/infrastructure/persistence/write"
+	"go-api/internal/infrastructure/storage"
 	httphandler "go-api/internal/interfaces/http/handler"
 	"go-api/internal/interfaces/http/middleware"
 
@@ -24,13 +26,15 @@ import (
 )
 
 type Container struct {
-	AuthenticateMiddleware *middleware.AuthenticateMiddleware
-	UserWebhookMiddleware  *middleware.UserWebhookMiddleware
-	UserWebhookHandler     *httphandler.UserWebhookHandler
-	UserHandler            *httphandler.UserHandler
-	ClientHandler          *httphandler.ClientHandler
-	CampaignHandler        *httphandler.CampaignHandler
-	RealtimeHandler        *httphandler.RealtimeHandler
+	AuthenticateMiddleware       *middleware.AuthenticateMiddleware
+	UserWebhookMiddleware        *middleware.UserWebhookMiddleware
+	MediaUploadWebhookMiddleware *middleware.MediaUploadWebhookMiddleware
+	UserWebhookHandler           *httphandler.UserWebhookHandler
+	MediaUploadWebhookHandler    *httphandler.MediaUploadWebhookHandler
+	UserHandler                  *httphandler.UserHandler
+	ClientHandler                *httphandler.ClientHandler
+	CampaignHandler              *httphandler.CampaignHandler
+	RealtimeHandler              *httphandler.RealtimeHandler
 }
 
 func NewContainer(db *gorm.DB, env *config.Config) *Container {
@@ -38,6 +42,12 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	if err != nil {
 		log.Fatalf("failed to create JWKS provider: %v", err)
 	}
+
+	objectStorage, err := storage.NewMinIOStorage(env)
+	if err != nil {
+		log.Fatalf("failed to create object storage: %v", err)
+	}
+	thumbnailer := imaging.NewThumbnailer()
 
 	userWriteRepo := write.NewUserWriteRepository(db)
 	userReadRepo := read.NewUserReadRepository(db)
@@ -66,6 +76,22 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	createCampaignHandler := campaigncmd.NewCreateCampaignHandler(campaignWriteRepo, outboxRepo)
 	updateCampaignHandler := campaigncmd.NewUpdateCampaignHandler(campaignWriteRepo, outboxRepo)
 	deleteCampaignHandler := campaigncmd.NewDeleteCampaignHandler(campaignWriteRepo, outboxRepo)
+	presignBackgroundHandler := campaigncmd.NewPresignBackgroundHandler(
+		campaignWriteRepo,
+		outboxRepo,
+		objectStorage,
+	)
+	clearBackgroundHandler := campaigncmd.NewClearBackgroundHandler(
+		campaignWriteRepo,
+		outboxRepo,
+		objectStorage,
+	)
+	processBackgroundUploadHandler := campaigncmd.NewProcessBackgroundUploadHandler(
+		campaignWriteRepo,
+		outboxRepo,
+		objectStorage,
+		thumbnailer,
+	)
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
 
@@ -76,11 +102,18 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			createUserHandler,
 		),
 		UserWebhookMiddleware: middleware.NewUserWebhookMiddleware(env.ClerkWebhookSecret),
+		MediaUploadWebhookMiddleware: middleware.NewMediaUploadWebhookMiddleware(
+			env.MinIOWebhookSecret,
+		),
 		UserWebhookHandler: httphandler.NewUserWebhookHandler(
 			getUserByExternalIDHandler,
 			createUserHandler,
 			updateUserHandler,
 			deleteUserByExternalIDHandler,
+		),
+		MediaUploadWebhookHandler: httphandler.NewMediaUploadWebhookHandler(
+			env.StorageBucket,
+			processBackgroundUploadHandler,
 		),
 		UserHandler: httphandler.NewUserHandler(getUserByIDHandler, setCurrentClientHandler),
 		ClientHandler: httphandler.NewClientHandler(
@@ -98,6 +131,9 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			getCampaignByIDHandler,
 			listCampaignsByClientHandler,
 			getClientByIDHandler,
+			presignBackgroundHandler,
+			clearBackgroundHandler,
+			objectStorage,
 		),
 		RealtimeHandler: httphandler.NewRealtimeHandler(centrifugo.NewConnectionInfoCreator(env)),
 	}

@@ -7,6 +7,7 @@ const (
 	ActionCurrentClientChanged = "current_client_changed"
 	ActionMemberAdded          = "member_added"
 	ActionMemberRemoved        = "member_removed"
+	ActionBackgroundUpdated    = "background_updated"
 
 	EntityUser     = "user"
 	EntityClient   = "client"

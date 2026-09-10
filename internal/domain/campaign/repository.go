@@ -15,6 +15,7 @@ type CampaignWriteRepository interface {
 	Update(ctx context.Context, campaign *Campaign) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Campaign, error)
+	GetByBackgroundPendingKey(ctx context.Context, pendingKey string) (*Campaign, error)
 }
 
 type CampaignReadRepository interface {
@@ -28,4 +29,10 @@ type CampaignView struct {
 	Name      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	BackgroundStatus       string
+	BackgroundPendingKey   string
+	BackgroundThumbnailKey string
+	BackgroundFilename     string
+	BackgroundContentType  string
 }

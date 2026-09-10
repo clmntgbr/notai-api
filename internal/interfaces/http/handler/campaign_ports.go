@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"io"
 
 	campaigncmd "go-api/internal/application/command/campaign"
 	querycampaign "go-api/internal/application/query/campaign"
@@ -32,4 +33,16 @@ type campaignListByClientHandler interface {
 
 type campaignGetClientByIDHandler interface {
 	Handle(ctx context.Context, q queryclient.GetClientByIDQuery) (*domainclient.ClientView, error)
+}
+
+type campaignPresignBackgroundHandler interface {
+	Handle(ctx context.Context, cmd campaigncmd.PresignBackgroundCommand) (*campaigncmd.PresignBackgroundResult, error)
+}
+
+type campaignClearBackgroundHandler interface {
+	Handle(ctx context.Context, cmd campaigncmd.ClearBackgroundCommand) error
+}
+
+type campaignStorage interface {
+	GetThumbnail(ctx context.Context, key string) (io.ReadCloser, error)
 }

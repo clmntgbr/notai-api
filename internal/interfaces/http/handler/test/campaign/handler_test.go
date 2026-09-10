@@ -1,8 +1,10 @@
 package campaigntest
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -119,6 +121,20 @@ func newCampaignHandler(
 	list *mockListCampaignsByClientHandler,
 	getClient *mockGetClientByIDHandler,
 ) *handler.CampaignHandler {
+	return newCampaignHandlerWithExtras(create, update, deleteH, getByID, list, getClient, nil, nil, nil)
+}
+
+func newCampaignHandlerWithExtras(
+	create *mockCreateCampaignHandler,
+	update *mockUpdateCampaignHandler,
+	deleteH *mockDeleteCampaignHandler,
+	getByID *mockGetCampaignByIDHandler,
+	list *mockListCampaignsByClientHandler,
+	getClient *mockGetClientByIDHandler,
+	presign *mockPresignBackgroundHandler,
+	clear *mockClearBackgroundHandler,
+	storage campaignThumbnailStorage,
+) *handler.CampaignHandler {
 	if create == nil {
 		create = &mockCreateCampaignHandler{}
 	}
@@ -137,7 +153,69 @@ func newCampaignHandler(
 	if getClient == nil {
 		getClient = &mockGetClientByIDHandler{}
 	}
-	return handler.NewCampaignHandler(create, update, deleteH, getByID, list, getClient)
+	if presign == nil {
+		presign = &mockPresignBackgroundHandler{}
+	}
+	if clear == nil {
+		clear = &mockClearBackgroundHandler{}
+	}
+	if storage == nil {
+		storage = &mockCampaignStorage{}
+	}
+	return handler.NewCampaignHandler(
+		create, update, deleteH, getByID, list, getClient, presign, clear, storage,
+	)
+}
+
+type campaignThumbnailStorage interface {
+	GetThumbnail(ctx context.Context, key string) (io.ReadCloser, error)
+}
+
+type mockPresignBackgroundHandler struct {
+	called bool
+	cmd    campaigncmd.PresignBackgroundCommand
+	result *campaigncmd.PresignBackgroundResult
+	err    error
+}
+
+func (m *mockPresignBackgroundHandler) Handle(
+	_ context.Context,
+	cmd campaigncmd.PresignBackgroundCommand,
+) (*campaigncmd.PresignBackgroundResult, error) {
+	m.called = true
+	m.cmd = cmd
+	return m.result, m.err
+}
+
+type mockClearBackgroundHandler struct {
+	called bool
+	cmd    campaigncmd.ClearBackgroundCommand
+	err    error
+}
+
+func (m *mockClearBackgroundHandler) Handle(
+	_ context.Context,
+	cmd campaigncmd.ClearBackgroundCommand,
+) error {
+	m.called = true
+	m.cmd = cmd
+	return m.err
+}
+
+type mockCampaignStorage struct {
+	called bool
+	key    string
+	body   []byte
+	err    error
+}
+
+func (m *mockCampaignStorage) GetThumbnail(_ context.Context, key string) (io.ReadCloser, error) {
+	m.called = true
+	m.key = key
+	if m.err != nil {
+		return nil, m.err
+	}
+	return io.NopCloser(bytes.NewReader(m.body)), nil
 }
 
 func sampleCampaignEntity() *domaincampaign.Campaign {

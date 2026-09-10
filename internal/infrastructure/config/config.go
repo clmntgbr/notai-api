@@ -35,6 +35,15 @@ type Config struct {
 	CentrifugoAPIKey      string
 	CentrifugoTokenSecret string
 	CentrifugoPublicWSURL string
+	StorageEndpoint          string
+	StorageInternalEndpoint  string
+	StorageRegion            string
+	StorageAccessKey         string
+	StorageSecretKey         string
+	StorageBucket            string
+	StorageThumbnailBucket   string
+	StorageUsePathStyle      bool
+	MinIOWebhookSecret       string
 }
 
 func Load() *Config {
@@ -63,10 +72,19 @@ func Load() *Config {
 		WorkerMaxRetries:     getEnvIntOrDefault("WORKER_MAX_RETRIES", 3),
 		OutboxPollInterval:   getEnvDuration("OUTBOX_POLL_INTERVAL", 2*time.Second),
 		WorkerConcurrency:    getEnvIntOrDefault("WORKER_CONCURRENCY", 4),
-		CentrifugoURL:         getEnv("CENTRIFUGO_URL"),
-		CentrifugoAPIKey:      getEnv("CENTRIFUGO_API_KEY"),
-		CentrifugoTokenSecret: getEnv("CENTRIFUGO_TOKEN_SECRET"),
-		CentrifugoPublicWSURL: getEnvOrDefault("CENTRIFUGO_PUBLIC_WS_URL", ""),
+		CentrifugoURL:            getEnv("CENTRIFUGO_URL"),
+		CentrifugoAPIKey:         getEnv("CENTRIFUGO_API_KEY"),
+		CentrifugoTokenSecret:    getEnv("CENTRIFUGO_TOKEN_SECRET"),
+		CentrifugoPublicWSURL:    getEnvOrDefault("CENTRIFUGO_PUBLIC_WS_URL", ""),
+		StorageEndpoint:          getEnv("STORAGE_ENDPOINT"),
+		StorageInternalEndpoint:  getEnvOrDefault("STORAGE_INTERNAL_ENDPOINT", ""),
+		StorageRegion:            getEnvOrDefault("STORAGE_REGION", "us-east-1"),
+		StorageAccessKey:         getEnv("STORAGE_ACCESS_KEY"),
+		StorageSecretKey:         getEnv("STORAGE_SECRET_KEY"),
+		StorageBucket:            getEnv("STORAGE_BUCKET"),
+		StorageThumbnailBucket:   getEnvOrDefault("STORAGE_THUMBNAIL_BUCKET", "thumbnails"),
+		StorageUsePathStyle:      getEnvBool("STORAGE_USE_PATH_STYLE"),
+		MinIOWebhookSecret:       getEnv("MINIO_WEBHOOK_SECRET"),
 	}
 }
 

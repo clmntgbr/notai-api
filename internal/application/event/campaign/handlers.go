@@ -66,3 +66,24 @@ func (h *CampaignDeletedHandler) Handle(ctx context.Context, payload []byte) err
 	)
 	return nil
 }
+
+type CampaignBackgroundUpdatedHandler struct{}
+
+func NewCampaignBackgroundUpdatedHandler() *CampaignBackgroundUpdatedHandler {
+	return &CampaignBackgroundUpdatedHandler{}
+}
+
+func (h *CampaignBackgroundUpdatedHandler) Handle(ctx context.Context, payload []byte) error {
+	var evt domaincampaign.CampaignBackgroundUpdated
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return messaging.NonRetryable(err)
+	}
+	log.Printf(
+		"event handled %s eventId=%s campaignId=%s status=%s",
+		domaincampaign.EventTypeCampaignBackgroundUpdated,
+		evt.ID,
+		evt.CampaignID,
+		evt.BackgroundStatus,
+	)
+	return nil
+}

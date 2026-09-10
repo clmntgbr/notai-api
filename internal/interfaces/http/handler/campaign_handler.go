@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"errors"
+	"io"
+	"strconv"
 	"strings"
 
 	campaigncmd "go-api/internal/application/command/campaign"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
+	domaincampaign "go-api/internal/domain/campaign"
 	"go-api/internal/domain/paginate"
 	httpctx "go-api/internal/interfaces/http/context"
 	"go-api/internal/interfaces/http/dto"
@@ -17,12 +21,15 @@ import (
 )
 
 type CampaignHandler struct {
-	createHandler        campaignCreateHandler
-	updateHandler        campaignUpdateHandler
-	deleteHandler        campaignDeleteHandler
-	getByIDHandler       campaignGetByIDHandler
-	listByClientHandler  campaignListByClientHandler
-	getClientByIDHandler campaignGetClientByIDHandler
+	createHandler            campaignCreateHandler
+	updateHandler            campaignUpdateHandler
+	deleteHandler            campaignDeleteHandler
+	getByIDHandler           campaignGetByIDHandler
+	listByClientHandler      campaignListByClientHandler
+	getClientByIDHandler     campaignGetClientByIDHandler
+	presignBackgroundHandler campaignPresignBackgroundHandler
+	clearBackgroundHandler   campaignClearBackgroundHandler
+	storage                  campaignStorage
 }
 
 func NewCampaignHandler(
@@ -32,14 +39,20 @@ func NewCampaignHandler(
 	getByIDHandler campaignGetByIDHandler,
 	listByClientHandler campaignListByClientHandler,
 	getClientByIDHandler campaignGetClientByIDHandler,
+	presignBackgroundHandler campaignPresignBackgroundHandler,
+	clearBackgroundHandler campaignClearBackgroundHandler,
+	storage campaignStorage,
 ) *CampaignHandler {
 	return &CampaignHandler{
-		createHandler:        createHandler,
-		updateHandler:        updateHandler,
-		deleteHandler:        deleteHandler,
-		getByIDHandler:       getByIDHandler,
-		listByClientHandler:  listByClientHandler,
-		getClientByIDHandler: getClientByIDHandler,
+		createHandler:            createHandler,
+		updateHandler:            updateHandler,
+		deleteHandler:            deleteHandler,
+		getByIDHandler:           getByIDHandler,
+		listByClientHandler:      listByClientHandler,
+		getClientByIDHandler:     getClientByIDHandler,
+		presignBackgroundHandler: presignBackgroundHandler,
+		clearBackgroundHandler:   clearBackgroundHandler,
+		storage:                  storage,
 	}
 }
 
@@ -245,6 +258,131 @@ func (h *CampaignHandler) Delete(c fiber.Ctx) error {
 
 	if err := h.deleteHandler.Handle(c.Context(), campaigncmd.DeleteCampaignCommand{ID: id}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to delete campaign"})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *CampaignHandler) PresignBackground(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+	}
+
+	var req dto.PresignCampaignBackgroundRequest
+	if err := validation.BindBody(c, &req); err != nil {
+		return err
+	}
+
+	result, err := h.presignBackgroundHandler.Handle(c.Context(), campaigncmd.PresignBackgroundCommand{
+		CampaignID:  id,
+		ClientID:    clientID,
+		Filename:    req.Filename,
+		ContentType: req.ContentType,
+	})
+	if err != nil {
+		if errors.Is(err, domaincampaign.ErrUnsupportedBackgroundType) {
+			return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+				"message": "Unsupported media type",
+			})
+		}
+		if err.Error() == "campaign not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to generate upload url",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.PresignCampaignBackgroundResponse{URL: result.URL})
+}
+
+func (h *CampaignHandler) GetThumbnail(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+
+	view, err := h.getByIDHandler.Handle(c.Context(), querycampaign.GetCampaignByIDQuery{ID: id})
+	if err != nil {
+		if err.Error() == "campaign not found" {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	if view.ClientID != clientID {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	if view.BackgroundThumbnailKey == "" {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	if view.BackgroundStatus != domaincampaign.BackgroundStatusReady &&
+		view.BackgroundStatus != domaincampaign.BackgroundStatusPending {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+
+	reader, err := h.storage.GetThumbnail(c.Context(), view.BackgroundThumbnailKey)
+	if err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	defer reader.Close()
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	c.Set("Content-Type", "image/jpeg")
+	c.Set("Cache-Control", "private, no-cache")
+	c.Set("ETag", strconv.Quote(strconv.FormatInt(view.UpdatedAt.UnixNano(), 10)))
+	c.Set("Content-Length", strconv.Itoa(len(body)))
+
+	return c.Send(body)
+}
+
+func (h *CampaignHandler) ClearBackground(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+	}
+
+	if err := h.clearBackgroundHandler.Handle(c.Context(), campaigncmd.ClearBackgroundCommand{
+		CampaignID: id,
+		ClientID:   clientID,
+	}); err != nil {
+		if err.Error() == "campaign not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to clear background",
+		})
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)

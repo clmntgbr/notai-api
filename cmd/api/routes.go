@@ -16,6 +16,11 @@ func setupRoutes(app *fiber.App, container *di.Container) {
 func setupWebhooks(app *fiber.App, container *di.Container) {
 	webhooks := app.Group("/webhooks")
 	webhooks.Post("/clerk", container.UserWebhookMiddleware.Protected(), container.UserWebhookHandler.Execute)
+	webhooks.Post(
+		"/minio/object-created",
+		container.MediaUploadWebhookMiddleware.Protected(),
+		container.MediaUploadWebhookHandler.ObjectCreated,
+	)
 }
 
 func setupHealthChecks(app *fiber.App) {
@@ -58,4 +63,7 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 	api.Get("/campaigns/:id", container.CampaignHandler.GetByID)
 	api.Put("/campaigns/:id", container.CampaignHandler.Update)
 	api.Delete("/campaigns/:id", container.CampaignHandler.Delete)
+	api.Post("/campaigns/:id/background/presign", container.CampaignHandler.PresignBackground)
+	api.Delete("/campaigns/:id/background", container.CampaignHandler.ClearBackground)
+	api.Get("/campaigns/:id/thumbnail", container.CampaignHandler.GetThumbnail)
 }

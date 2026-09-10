@@ -52,6 +52,14 @@ func (h *PublishRealtimeHandler) OnDeleted(ctx context.Context, payload []byte) 
 	return h.publishToClientMembers(ctx, realtime.ActionDeleted, evt.ClientID, evt)
 }
 
+func (h *PublishRealtimeHandler) OnBackgroundUpdated(ctx context.Context, payload []byte) error {
+	var evt domaincampaign.CampaignBackgroundUpdated
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return messaging.NonRetryable(err)
+	}
+	return h.publishToClientMembers(ctx, realtime.ActionBackgroundUpdated, evt.ClientID, evt)
+}
+
 func (h *PublishRealtimeHandler) publishToClientMembers(
 	ctx context.Context,
 	action string,

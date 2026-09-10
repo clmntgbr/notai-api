@@ -15,17 +15,24 @@ type Campaign struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
+	BackgroundStatus       string
+	BackgroundPendingKey   string
+	BackgroundThumbnailKey string
+	BackgroundFilename     string
+	BackgroundContentType  string
+
 	events []event.DomainEvent
 }
 
 func NewCampaign(name string, clientID uuid.UUID) *Campaign {
 	now := time.Now().UTC()
 	c := &Campaign{
-		ID:        uuid.New(),
-		ClientID:  clientID,
-		Name:      name,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:               uuid.New(),
+		ClientID:         clientID,
+		Name:             name,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		BackgroundStatus: BackgroundStatusNone,
 	}
 	c.recordEvent(CampaignCreated{
 		ID:         uuid.New().String(),
@@ -65,5 +72,54 @@ func (c *Campaign) MarkDeleted() {
 		CampaignID: c.ID.String(),
 		ClientID:   c.ClientID.String(),
 		Timestamp:  time.Now().UTC(),
+	})
+}
+
+func (c *Campaign) StartBackgroundUpload(pendingKey, filename, contentType string) {
+	c.BackgroundStatus = BackgroundStatusPending
+	c.BackgroundPendingKey = pendingKey
+	c.BackgroundFilename = filename
+	c.BackgroundContentType = contentType
+	// Keep BackgroundThumbnailKey so the previous image stays available while replacing.
+	c.UpdatedAt = time.Now().UTC()
+	c.recordBackgroundUpdated()
+}
+
+func (c *Campaign) ApplyBackgroundReady(thumbnailKey string, contentType string) {
+	c.BackgroundStatus = BackgroundStatusReady
+	c.BackgroundPendingKey = ""
+	c.BackgroundThumbnailKey = thumbnailKey
+	if contentType != "" {
+		c.BackgroundContentType = contentType
+	}
+	c.UpdatedAt = time.Now().UTC()
+	c.recordBackgroundUpdated()
+}
+
+func (c *Campaign) MarkBackgroundFailed() {
+	c.BackgroundStatus = BackgroundStatusFailed
+	c.BackgroundPendingKey = ""
+	c.UpdatedAt = time.Now().UTC()
+	c.recordBackgroundUpdated()
+}
+
+func (c *Campaign) ClearBackground() {
+	c.BackgroundStatus = BackgroundStatusNone
+	c.BackgroundPendingKey = ""
+	c.BackgroundThumbnailKey = ""
+	c.BackgroundFilename = ""
+	c.BackgroundContentType = ""
+	c.UpdatedAt = time.Now().UTC()
+	c.recordBackgroundUpdated()
+}
+
+func (c *Campaign) recordBackgroundUpdated() {
+	c.recordEvent(CampaignBackgroundUpdated{
+		ID:                     uuid.New().String(),
+		CampaignID:             c.ID.String(),
+		ClientID:               c.ClientID.String(),
+		BackgroundStatus:       c.BackgroundStatus,
+		BackgroundThumbnailKey: c.BackgroundThumbnailKey,
+		Timestamp:              c.UpdatedAt,
 	})
 }

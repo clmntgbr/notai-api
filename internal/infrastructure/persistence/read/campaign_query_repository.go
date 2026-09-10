@@ -18,6 +18,12 @@ type campaignRow struct {
 	Name      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	BackgroundStatus       string
+	BackgroundPendingKey   *string
+	BackgroundThumbnailKey *string
+	BackgroundFilename     *string
+	BackgroundContentType  *string
 }
 
 func (campaignRow) TableName() string { return "campaigns" }
@@ -30,10 +36,14 @@ func NewCampaignReadRepository(db *gorm.DB) domaincampaign.CampaignReadRepositor
 	return &campaignReadRepository{db: db}
 }
 
+const campaignSelectCols = "id, client_id, name, created_at, updated_at, " +
+	"background_status, background_pending_key, background_thumbnail_key, " +
+	"background_filename, background_content_type"
+
 func (r *campaignReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*domaincampaign.CampaignView, error) {
 	var row campaignRow
 	err := r.db.WithContext(ctx).
-		Select("id", "client_id", "name", "created_at", "updated_at").
+		Select(campaignSelectCols).
 		First(&row, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -74,8 +84,7 @@ func (r *campaignReadRepository) FindPageByClientID(
 	}
 
 	var rows []campaignRow
-	if err := db.Select("id", "client_id", "name", "created_at", "updated_at").
-		Find(&rows).Error; err != nil {
+	if err := db.Select(campaignSelectCols).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -86,12 +95,28 @@ func (r *campaignReadRepository) FindPageByClientID(
 	return views, total, nil
 }
 
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 func toCampaignView(row campaignRow) *domaincampaign.CampaignView {
+	status := row.BackgroundStatus
+	if status == "" {
+		status = domaincampaign.BackgroundStatusNone
+	}
 	return &domaincampaign.CampaignView{
-		ID:        row.ID,
-		ClientID:  row.ClientID,
-		Name:      row.Name,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		ID:                     row.ID,
+		ClientID:               row.ClientID,
+		Name:                   row.Name,
+		CreatedAt:              row.CreatedAt,
+		UpdatedAt:              row.UpdatedAt,
+		BackgroundStatus:       status,
+		BackgroundPendingKey:   derefString(row.BackgroundPendingKey),
+		BackgroundThumbnailKey: derefString(row.BackgroundThumbnailKey),
+		BackgroundFilename:     derefString(row.BackgroundFilename),
+		BackgroundContentType:  derefString(row.BackgroundContentType),
 	}
 }
