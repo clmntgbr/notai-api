@@ -4,8 +4,12 @@ import (
 	"log"
 
 	"go-api/internal/application/event/dedup"
+	eventcampaign "go-api/internal/application/event/campaign"
+	eventclient "go-api/internal/application/event/client"
 	eventuser "go-api/internal/application/event/user"
 	"go-api/internal/application/registry"
+	domaincampaign "go-api/internal/domain/campaign"
+	domainclient "go-api/internal/domain/client"
 	domainuser "go-api/internal/domain/user"
 	"go-api/internal/infrastructure/centrifugo"
 	"go-api/internal/infrastructure/config"
@@ -13,6 +17,7 @@ import (
 	"go-api/internal/infrastructure/notification"
 	"go-api/internal/infrastructure/persistence/outbox"
 	"go-api/internal/infrastructure/persistence/processed"
+	"go-api/internal/infrastructure/persistence/read"
 
 	"gorm.io/gorm"
 )
@@ -43,7 +48,10 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	dedupRepo := processed.NewRepository(db)
 	notifier := notification.NewLogNotifier()
 	realtimePublisher := centrifugo.NewPublisher(env)
+	clientReadRepo := read.NewClientReadRepository(db)
 	publishUserRealtime := eventuser.NewPublishRealtimeHandler(realtimePublisher)
+	publishClientRealtime := eventclient.NewPublishRealtimeHandler(realtimePublisher)
+	publishCampaignRealtime := eventcampaign.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
 	reg := registry.NewHandlerRegistry()
 
 	reg.Register(domainuser.EventTypeUserCreated, dedup.With(
@@ -80,6 +88,98 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		dedupRepo,
 		"publish_user_deleted_realtime",
 		publishUserRealtime.OnDeleted,
+	))
+	reg.Register(domainuser.EventTypeUserCurrentClientChanged, dedup.With(
+		dedupRepo,
+		"user_current_client_changed",
+		eventuser.NewUserCurrentClientChangedHandler().Handle,
+	))
+	reg.Register(domainuser.EventTypeUserCurrentClientChanged, dedup.With(
+		dedupRepo,
+		"publish_user_current_client_changed_realtime",
+		publishUserRealtime.OnCurrentClientChanged,
+	))
+
+	reg.Register(domainclient.EventTypeClientCreated, dedup.With(
+		dedupRepo,
+		"client_created",
+		eventclient.NewClientCreatedHandler().Handle,
+	))
+	reg.Register(domainclient.EventTypeClientCreated, dedup.With(
+		dedupRepo,
+		"publish_client_created_realtime",
+		publishClientRealtime.OnCreated,
+	))
+	reg.Register(domainclient.EventTypeClientUpdated, dedup.With(
+		dedupRepo,
+		"client_updated",
+		eventclient.NewClientUpdatedHandler().Handle,
+	))
+	reg.Register(domainclient.EventTypeClientUpdated, dedup.With(
+		dedupRepo,
+		"publish_client_updated_realtime",
+		publishClientRealtime.OnUpdated,
+	))
+	reg.Register(domainclient.EventTypeClientDeleted, dedup.With(
+		dedupRepo,
+		"client_deleted",
+		eventclient.NewClientDeletedHandler().Handle,
+	))
+	reg.Register(domainclient.EventTypeClientDeleted, dedup.With(
+		dedupRepo,
+		"publish_client_deleted_realtime",
+		publishClientRealtime.OnDeleted,
+	))
+	reg.Register(domainclient.EventTypeClientMemberAdded, dedup.With(
+		dedupRepo,
+		"client_member_added",
+		eventclient.NewClientMemberAddedHandler().Handle,
+	))
+	reg.Register(domainclient.EventTypeClientMemberAdded, dedup.With(
+		dedupRepo,
+		"publish_client_member_added_realtime",
+		publishClientRealtime.OnMemberAdded,
+	))
+	reg.Register(domainclient.EventTypeClientMemberRemoved, dedup.With(
+		dedupRepo,
+		"client_member_removed",
+		eventclient.NewClientMemberRemovedHandler().Handle,
+	))
+	reg.Register(domainclient.EventTypeClientMemberRemoved, dedup.With(
+		dedupRepo,
+		"publish_client_member_removed_realtime",
+		publishClientRealtime.OnMemberRemoved,
+	))
+
+	reg.Register(domaincampaign.EventTypeCampaignCreated, dedup.With(
+		dedupRepo,
+		"campaign_created",
+		eventcampaign.NewCampaignCreatedHandler().Handle,
+	))
+	reg.Register(domaincampaign.EventTypeCampaignCreated, dedup.With(
+		dedupRepo,
+		"publish_campaign_created_realtime",
+		publishCampaignRealtime.OnCreated,
+	))
+	reg.Register(domaincampaign.EventTypeCampaignUpdated, dedup.With(
+		dedupRepo,
+		"campaign_updated",
+		eventcampaign.NewCampaignUpdatedHandler().Handle,
+	))
+	reg.Register(domaincampaign.EventTypeCampaignUpdated, dedup.With(
+		dedupRepo,
+		"publish_campaign_updated_realtime",
+		publishCampaignRealtime.OnUpdated,
+	))
+	reg.Register(domaincampaign.EventTypeCampaignDeleted, dedup.With(
+		dedupRepo,
+		"campaign_deleted",
+		eventcampaign.NewCampaignDeletedHandler().Handle,
+	))
+	reg.Register(domaincampaign.EventTypeCampaignDeleted, dedup.With(
+		dedupRepo,
+		"publish_campaign_deleted_realtime",
+		publishCampaignRealtime.OnDeleted,
 	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)

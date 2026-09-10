@@ -4,7 +4,7 @@
 
 Users are provisioned from **Clerk** via webhooks. The API authenticates requests with a **Clerk JWT** (Bearer token).
 
-`ActiveProjectID` exists on the domain user / HTTP context for multi-tenant apps; this template does not persist projects yet — use `httpctx.GetActiveProjectID()` when you add project-scoped resources.
+Each user has a `CurrentClientID` (active tenant). Creating a user also creates a personal client and sets it as current. Switch only via `PUT /api/users/me/current-client`. Non-membership is answered as `404` (same as unknown id) to avoid leaking client existence. Scoped resources (campaigns) use `httpctx.GetCurrentClientID()`.
 
 ## Authentication
 
@@ -18,6 +18,7 @@ Users are provisioned from **Clerk** via webhooks. The API authenticates request
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/users/me` | Current user profile |
+| `PUT` | `/api/users/me/current-client` | Switch current client (`{ "clientId" }`) |
 | `GET` | `/api/realtime/connection` | Centrifugo connection credentials |
 
 ## Code map
@@ -34,6 +35,7 @@ Users are provisioned from **Clerk** via webhooks. The API authenticates request
 ## Events
 
 - `user.created.v1`, `user.updated.v1`, `user.deleted.v1` (Clerk webhooks → commands → outbox)
+- `user.current_client_changed.v1`
 
 ## Tests
 

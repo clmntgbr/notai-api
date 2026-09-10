@@ -3,7 +3,10 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
+	domainclient "go-api/internal/domain/client"
 	"go-api/internal/domain/port"
 	domainuser "go-api/internal/domain/user"
 )
@@ -17,26 +20,61 @@ type CreateUserCommand struct {
 }
 
 type CreateUserHandler struct {
-	repo   domainuser.UserWriteRepository
-	outbox port.OutboxRepository
+	userRepo   domainuser.UserWriteRepository
+	clientRepo domainclient.ClientWriteRepository
+	outbox     port.OutboxRepository
 }
 
-func NewCreateUserHandler(repo domainuser.UserWriteRepository, outbox port.OutboxRepository) *CreateUserHandler {
-	return &CreateUserHandler{repo: repo, outbox: outbox}
+func NewCreateUserHandler(
+	userRepo domainuser.UserWriteRepository,
+	clientRepo domainclient.ClientWriteRepository,
+	outbox port.OutboxRepository,
+) *CreateUserHandler {
+	return &CreateUserHandler{
+		userRepo:   userRepo,
+		clientRepo: clientRepo,
+		outbox:     outbox,
+	}
 }
 
 func (h *CreateUserHandler) Handle(ctx context.Context, cmd CreateUserCommand) (*domainuser.User, error) {
 	u := domainuser.NewUser(cmd.ClerkID, cmd.FirstName, cmd.LastName, cmd.Email, cmd.Banned)
 
-	err := h.repo.WithTransaction(ctx, func(txCtx context.Context) error {
-		if err := h.repo.Save(txCtx, u); err != nil {
+	err := h.userRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+		if err := h.userRepo.Save(txCtx, u); err != nil {
 			return err
 		}
-		return h.outbox.StoreEvents(txCtx, u.PullEvents())
+
+		client := domainclient.NewClient(personalClientName(cmd.FirstName, cmd.LastName), u.ID)
+		client.AddMember(u.ID)
+		if err := h.clientRepo.Save(txCtx, client); err != nil {
+			return err
+		}
+
+		u.SetCurrentClient(client.ID)
+		if err := h.userRepo.Update(txCtx, u); err != nil {
+			return err
+		}
+
+		events := append(u.PullEvents(), client.PullEvents()...)
+		return h.outbox.StoreEvents(txCtx, events)
 	})
 	if err != nil {
 		return nil, errors.New("failed to create user")
 	}
 
 	return u, nil
+}
+
+func personalClientName(firstName, lastName string) string {
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+	switch {
+	case firstName != "" && lastName != "":
+		return fmt.Sprintf("%s %s", firstName, lastName)
+	case firstName != "":
+		return fmt.Sprintf("%s's Client", firstName)
+	default:
+		return "Personal Client"
+	}
 }

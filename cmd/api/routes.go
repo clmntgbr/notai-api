@@ -29,6 +29,8 @@ func setupAPIRoutes(app *fiber.App, container *di.Container) {
 
 	protected := public.Group("", container.AuthenticateMiddleware.Protected())
 	setupUserRoutes(protected, container)
+	setupClientRoutes(protected, container)
+	setupCampaignRoutes(protected, container)
 	setupRealtimeRoutes(protected, container)
 }
 
@@ -38,4 +40,22 @@ func setupRealtimeRoutes(api fiber.Router, container *di.Container) {
 
 func setupUserRoutes(api fiber.Router, container *di.Container) {
 	api.Get("/users/me", container.UserHandler.GetUser)
+	api.Put("/users/me/current-client", container.UserHandler.SetCurrentClient)
+}
+
+func setupClientRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/clients", container.ClientHandler.List)
+	api.Post("/clients", container.ClientHandler.Create)
+	api.Get("/clients/:id", container.ClientHandler.GetByID)
+	api.Put("/clients/:id", container.ClientHandler.Update)
+	api.Delete("/clients/:id", container.ClientHandler.Delete)
+	api.Delete("/clients/:id/members/:userId", container.ClientHandler.RemoveMember)
+}
+
+func setupCampaignRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/campaigns", container.CampaignHandler.List)
+	api.Post("/campaigns", container.CampaignHandler.Create)
+	api.Get("/campaigns/:id", container.CampaignHandler.GetByID)
+	api.Put("/campaigns/:id", container.CampaignHandler.Update)
+	api.Delete("/campaigns/:id", container.CampaignHandler.Delete)
 }

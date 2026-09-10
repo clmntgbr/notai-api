@@ -9,14 +9,15 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID
-	ClerkID   string
-	FirstName string
-	LastName  string
-	Banned    bool
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              uuid.UUID
+	ClerkID         string
+	FirstName       string
+	LastName        string
+	Banned          bool
+	Email           string
+	CurrentClientID *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 
 	events []event.DomainEvent
 }
@@ -83,4 +84,35 @@ func (u *User) MarkDeleted() {
 		ClerkID:   u.ClerkID,
 		Timestamp: time.Now().UTC(),
 	})
+}
+
+func (u *User) SetCurrentClient(clientID uuid.UUID) bool {
+	if u.CurrentClientID != nil && *u.CurrentClientID == clientID {
+		return false
+	}
+	id := clientID
+	u.CurrentClientID = &id
+	u.UpdatedAt = time.Now().UTC()
+	u.recordEvent(UserCurrentClientChanged{
+		ID:        uuid.New().String(),
+		UserID:    u.ID.String(),
+		ClientID:  clientID.String(),
+		Timestamp: u.UpdatedAt,
+	})
+	return true
+}
+
+func (u *User) ClearCurrentClient() bool {
+	if u.CurrentClientID == nil {
+		return false
+	}
+	u.CurrentClientID = nil
+	u.UpdatedAt = time.Now().UTC()
+	u.recordEvent(UserCurrentClientChanged{
+		ID:        uuid.New().String(),
+		UserID:    u.ID.String(),
+		ClientID:  "",
+		Timestamp: u.UpdatedAt,
+	})
+	return true
 }

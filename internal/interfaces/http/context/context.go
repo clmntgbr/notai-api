@@ -6,6 +6,7 @@ import (
 	domainuser "go-api/internal/domain/user"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 )
 
 const UserKey = "user"
@@ -20,4 +21,15 @@ func GetUser(c fiber.Ctx) (*domainuser.User, error) {
 
 func SetUser(c fiber.Ctx, user domainuser.User) {
 	c.Locals(UserKey, &user)
+}
+
+func GetCurrentClientID(c fiber.Ctx) (uuid.UUID, error) {
+	user, err := GetUser(c)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if user.CurrentClientID == nil || *user.CurrentClientID == uuid.Nil {
+		return uuid.Nil, errors.New("current client is required")
+	}
+	return *user.CurrentClientID, nil
 }

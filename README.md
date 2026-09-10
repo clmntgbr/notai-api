@@ -157,7 +157,7 @@ See `.env.dist`. Messaging / realtime:
 - `RABBITMQ_URL`
 - `RABBITMQ_EXCHANGE` (default `domain.events`)
 - `RABBITMQ_QUEUE` (default `domain.events`)
-- `RABBITMQ_ROUTING_KEY` (default `user.#`, comma-separated)
+- `RABBITMQ_ROUTING_KEY` (default `user.#,client.#,campaign.#`, comma-separated)
 - `OUTBOX_POLL_INTERVAL` (default `2s`)
 - `WORKER_CONCURRENCY` (default `4`)
 - `CENTRIFUGO_URL`, `CENTRIFUGO_API_KEY`, `CENTRIFUGO_TOKEN_SECRET`, `CENTRIFUGO_PUBLIC_WS_URL`

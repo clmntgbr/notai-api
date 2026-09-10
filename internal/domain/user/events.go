@@ -3,9 +3,10 @@ package user
 import "time"
 
 const (
-	EventTypeUserCreated = "user.created.v1"
-	EventTypeUserUpdated = "user.updated.v1"
-	EventTypeUserDeleted = "user.deleted.v1"
+	EventTypeUserCreated              = "user.created.v1"
+	EventTypeUserUpdated              = "user.updated.v1"
+	EventTypeUserDeleted              = "user.deleted.v1"
+	EventTypeUserCurrentClientChanged = "user.current_client_changed.v1"
 )
 
 type UserCreated struct {
@@ -51,3 +52,15 @@ func (e UserDeleted) EventID() string       { return e.ID }
 func (e UserDeleted) EventType() string     { return EventTypeUserDeleted }
 func (e UserDeleted) AggregateID() string   { return e.UserID }
 func (e UserDeleted) OccurredAt() time.Time { return e.Timestamp }
+
+type UserCurrentClientChanged struct {
+	ID        string    `json:"eventId"`
+	UserID    string    `json:"userId"`
+	ClientID  string    `json:"clientId"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+func (e UserCurrentClientChanged) EventID() string       { return e.ID }
+func (e UserCurrentClientChanged) EventType() string     { return EventTypeUserCurrentClientChanged }
+func (e UserCurrentClientChanged) AggregateID() string   { return e.UserID }
+func (e UserCurrentClientChanged) OccurredAt() time.Time { return e.Timestamp }

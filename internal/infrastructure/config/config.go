@@ -58,7 +58,7 @@ func Load() *Config {
 		RabbitMQURL:          getEnv("RABBITMQ_URL"),
 		RabbitMQExchange:     getEnvOrDefault("RABBITMQ_EXCHANGE", "domain.events"),
 		RabbitMQQueue:        getEnvOrDefault("RABBITMQ_QUEUE", "domain.events"),
-		RabbitMQRoutingKey:   getEnvOrDefault("RABBITMQ_ROUTING_KEY", "user.#"),
+		RabbitMQRoutingKey:   getEnvOrDefault("RABBITMQ_ROUTING_KEY", "user.#,client.#,campaign.#"),
 		RabbitMQRetryTTLMS:   getEnvIntOrDefault("RABBITMQ_RETRY_TTL_MS", 30000),
 		WorkerMaxRetries:     getEnvIntOrDefault("WORKER_MAX_RETRIES", 3),
 		OutboxPollInterval:   getEnvDuration("OUTBOX_POLL_INTERVAL", 2*time.Second),

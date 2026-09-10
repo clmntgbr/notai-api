@@ -14,6 +14,9 @@ import (
 func Models() []any {
 	return []any{
 		&write.UserModel{},
+		&write.ClientModel{},
+		&write.UserClientModel{},
+		&write.CampaignModel{},
 		&outbox.OutboxEvent{},
 		&processed.ProcessedEvent{},
 	}

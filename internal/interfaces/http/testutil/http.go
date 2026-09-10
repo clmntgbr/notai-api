@@ -29,22 +29,34 @@ func NewTestApp() *fiber.App {
 	})
 }
 
-// WithActiveProject injects a user with the given active project into the request context.
-func WithActiveProject(userID, projectID uuid.UUID) fiber.Handler {
+// WithActiveClient injects a user with the given current client into the request context.
+func WithActiveClient(userID, clientID uuid.UUID) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		clientIDCopy := clientID
 		httpctx.SetUser(c, domainuser.User{
-			ID: userID,
+			ID:              userID,
+			CurrentClientID: &clientIDCopy,
 		})
 		return c.Next()
 	}
 }
 
-// WithUserWithoutProject injects a user without an active project.
-func WithUserWithoutProject(userID uuid.UUID) fiber.Handler {
+// WithActiveProject is kept as an alias for older test names; prefer WithActiveClient.
+func WithActiveProject(userID, projectID uuid.UUID) fiber.Handler {
+	return WithActiveClient(userID, projectID)
+}
+
+// WithUserWithoutClient injects a user without a current client.
+func WithUserWithoutClient(userID uuid.UUID) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		httpctx.SetUser(c, domainuser.User{ID: userID})
 		return c.Next()
 	}
+}
+
+// WithUserWithoutProject is kept as an alias; prefer WithUserWithoutClient.
+func WithUserWithoutProject(userID uuid.UUID) fiber.Handler {
+	return WithUserWithoutClient(userID)
 }
 
 func JSONRequest(method, path string, body any) (*http.Request, error) {

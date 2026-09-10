@@ -43,3 +43,11 @@ func (h *PublishRealtimeHandler) OnDeleted(ctx context.Context, payload []byte) 
 	}
 	return h.publisher.ToUser(ctx, realtime.EntityUser, realtime.ActionDeleted, evt.UserID, evt)
 }
+
+func (h *PublishRealtimeHandler) OnCurrentClientChanged(ctx context.Context, payload []byte) error {
+	var evt domainuser.UserCurrentClientChanged
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return messaging.NonRetryable(err)
+	}
+	return h.publisher.ToUser(ctx, realtime.EntityUser, realtime.ActionCurrentClientChanged, evt.UserID, evt)
+}

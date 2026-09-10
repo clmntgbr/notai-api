@@ -1,0 +1,97 @@
+package read
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"go-api/internal/domain/paginate"
+	domaincampaign "go-api/internal/domain/campaign"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+type campaignRow struct {
+	ID        uuid.UUID
+	ClientID  uuid.UUID
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (campaignRow) TableName() string { return "campaigns" }
+
+type campaignReadRepository struct {
+	db *gorm.DB
+}
+
+func NewCampaignReadRepository(db *gorm.DB) domaincampaign.CampaignReadRepository {
+	return &campaignReadRepository{db: db}
+}
+
+func (r *campaignReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*domaincampaign.CampaignView, error) {
+	var row campaignRow
+	err := r.db.WithContext(ctx).
+		Select("id", "client_id", "name", "created_at", "updated_at").
+		First(&row, "id = ?", id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toCampaignView(row), nil
+}
+
+func (r *campaignReadRepository) FindPageByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+	query paginate.PaginateQuery,
+) ([]domaincampaign.CampaignView, int64, error) {
+	switch query.SortBy {
+	case "", "created_at":
+		query.SortBy = "created_at"
+	case "updated_at":
+		query.SortBy = "updated_at"
+	case "name":
+		query.SortBy = "name"
+	default:
+		query.SortBy = "created_at"
+	}
+
+	db := r.db.WithContext(ctx).
+		Model(&campaignRow{}).
+		Where("client_id = ?", clientID)
+
+	if query.Search != "" {
+		db = db.Where("name ILIKE ?", "%"+query.Search+"%")
+	}
+
+	db, total, err := Paginate(db, query)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var rows []campaignRow
+	if err := db.Select("id", "client_id", "name", "created_at", "updated_at").
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	views := make([]domaincampaign.CampaignView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, *toCampaignView(row))
+	}
+	return views, total, nil
+}
+
+func toCampaignView(row campaignRow) *domaincampaign.CampaignView {
+	return &domaincampaign.CampaignView{
+		ID:        row.ID,
+		ClientID:  row.ClientID,
+		Name:      row.Name,
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
+	}
+}
