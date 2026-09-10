@@ -36,7 +36,8 @@ type PresignContentItem struct {
 }
 
 type PresignContentsResult struct {
-	Items []PresignContentItem
+	CampaignID uuid.UUID
+	Items      []PresignContentItem
 }
 
 type PresignContentsHandler struct {
@@ -86,18 +87,15 @@ func (h *PresignContentsHandler) Handle(
 	created := make([]*domaincontent.Content, 0, len(normalized))
 
 	err := h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
-		campaign, err := h.campaignRepo.GetByID(txCtx, cmd.CampaignID)
+		campaign, err := h.resolveCampaign(txCtx, cmd.CampaignID, cmd.ClientID)
 		if err != nil {
-			return errors.New("failed to get campaign")
-		}
-		if campaign == nil || campaign.ClientID != cmd.ClientID {
-			return errors.New("campaign not found")
+			return err
 		}
 
 		var events []event.DomainEvent
 		for _, file := range normalized {
 			item, err := domaincontent.NewPendingUpload(
-				cmd.CampaignID,
+				campaign.ID,
 				cmd.ClientID,
 				file.Filename,
 				file.ContentType,
@@ -135,5 +133,30 @@ func (h *PresignContentsHandler) Handle(
 		})
 	}
 
-	return &PresignContentsResult{Items: items}, nil
+	return &PresignContentsResult{
+		CampaignID: created[0].CampaignID,
+		Items:      items,
+	}, nil
+}
+
+func (h *PresignContentsHandler) resolveCampaign(
+	ctx context.Context,
+	campaignID, clientID uuid.UUID,
+) (*domaincampaign.Campaign, error) {
+	var (
+		campaign *domaincampaign.Campaign
+		err      error
+	)
+	if campaignID == uuid.Nil {
+		campaign, err = h.campaignRepo.GetDefaultByClientID(ctx, clientID)
+	} else {
+		campaign, err = h.campaignRepo.GetByID(ctx, campaignID)
+	}
+	if err != nil {
+		return nil, errors.New("failed to get campaign")
+	}
+	if campaign == nil || campaign.ClientID != clientID {
+		return nil, errors.New("campaign not found")
+	}
+	return campaign, nil
 }

@@ -49,11 +49,15 @@ func NewPresignContentsResponse(result *contentcmd.PresignContentsResult) Presig
 			Filename:  item.Filename,
 		})
 	}
-	return PresignContentsResponse{Items: items}
+	return PresignContentsResponse{
+		CampaignID: result.CampaignID.String(),
+		Items:      items,
+	}
 }
 
 type PresignContentsResponse struct {
-	Items []PresignContentItemResponse `json:"items"`
+	CampaignID string                       `json:"campaignId"`
+	Items      []PresignContentItemResponse `json:"items"`
 }
 
 type PresignContentItemResponse struct {

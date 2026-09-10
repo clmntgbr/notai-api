@@ -92,6 +92,7 @@ func TestContentHandler_Presign_Success(t *testing.T) {
 	contentID := uuid.MustParse("01960000-0000-7000-8000-0000000000c1")
 	presign := &mockPresignContentsHandler{
 		result: &contentcmd.PresignContentsResult{
+			CampaignID: testutil.TestCampaignID,
 			Items: []contentcmd.PresignContentItem{{
 				ContentID: contentID,
 				URL:       "https://minio.example/upload",
@@ -103,42 +104,76 @@ func TestContentHandler_Presign_Success(t *testing.T) {
 	h := newContentHandler(presign, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
-		map[string]any{
-			"files": []map[string]any{
-				{"filename": "shot.png", "contentType": "image/png"},
-			},
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign", map[string]any{
+		"campaignId": testutil.TestCampaignID.String(),
+		"files": []map[string]any{
+			{"filename": "shot.png", "contentType": "image/png"},
 		},
-	))
+	}))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
-	if !presign.called || len(presign.cmd.Files) != 1 {
+	if !presign.called || presign.cmd.CampaignID != testutil.TestCampaignID || len(presign.cmd.Files) != 1 {
 		t.Fatalf("unexpected cmd: %+v", presign.cmd)
 	}
 	body := testutil.DecodeJSONMap(t, resp)
+	if body["campaignId"] != testutil.TestCampaignID.String() {
+		t.Fatalf("campaignId: %#v", body["campaignId"])
+	}
 	items, _ := body["items"].([]any)
 	if len(items) != 1 {
 		t.Fatalf("items: %#v", body["items"])
 	}
 }
 
+func TestContentHandler_Presign_EmptyCampaignID_UsesDefault(t *testing.T) {
+	presign := &mockPresignContentsHandler{
+		result: &contentcmd.PresignContentsResult{
+			CampaignID: testutil.TestCampaignID,
+			Items: []contentcmd.PresignContentItem{{
+				ContentID: uuid.MustParse("01960000-0000-7000-8000-0000000000c1"),
+				URL:       "https://minio.example/upload",
+				ObjectKey: "key",
+				Filename:  "a.png",
+			}},
+		},
+	}
+	h := newContentHandler(presign, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post(
+		"/contents/presign",
+		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
+		h.Presign,
+	)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign", map[string]any{
+		"files": []map[string]any{{"filename": "a.png"}},
+	}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !presign.called || presign.cmd.CampaignID != uuid.Nil {
+		t.Fatalf("expected nil campaign id, got %+v", presign.cmd.CampaignID)
+	}
+}
+
 func TestContentHandler_Presign_Unauthorized(t *testing.T) {
 	h := newContentHandler(nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Post("/campaigns/:id/contents/presign", h.Presign)
+	app.Post("/contents/presign", h.Presign)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
 	))
 	if err != nil {
@@ -153,13 +188,12 @@ func TestContentHandler_Presign_MissingClient(t *testing.T) {
 	h := newContentHandler(nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithUserWithoutClient(testutil.TestUserID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
 	))
 	if err != nil {
@@ -175,13 +209,12 @@ func TestContentHandler_Presign_UnsupportedMediaType(t *testing.T) {
 	h := newContentHandler(presign, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.pdf"}}},
 	))
 	if err != nil {
@@ -197,13 +230,12 @@ func TestContentHandler_Presign_TooManyFiles(t *testing.T) {
 	h := newContentHandler(presign, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
 	))
 	if err != nil {
@@ -219,13 +251,12 @@ func TestContentHandler_Presign_NotFound(t *testing.T) {
 	h := newContentHandler(presign, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
 	))
 	if err != nil {
@@ -240,15 +271,15 @@ func TestContentHandler_Presign_InvalidCampaignID(t *testing.T) {
 	h := newContentHandler(nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/bad/contents/presign",
-		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
-	))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign", map[string]any{
+		"campaignId": "bad",
+		"files":      []map[string]any{{"filename": "a.png"}},
+	}))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -261,13 +292,12 @@ func TestContentHandler_Presign_InvalidBody(t *testing.T) {
 	h := newContentHandler(nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []any{}},
 	))
 	if err != nil {
@@ -283,13 +313,12 @@ func TestContentHandler_Presign_Internal(t *testing.T) {
 	h := newContentHandler(presign, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
 	))
 	if err != nil {
@@ -438,13 +467,12 @@ func TestContentHandler_Presign_EmptyFileListError(t *testing.T) {
 	h := newContentHandler(presign, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/contents/presign",
+		"/contents/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/contents/presign",
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/contents/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png"}}},
 	))
 	if err != nil {

@@ -45,14 +45,17 @@ func (h *ContentHandler) Presign(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
 	}
 
-	campaignID, err := uuid.Parse(c.Params("id"))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
-	}
-
 	var req dto.PresignContentsRequest
 	if err := validation.BindBody(c, &req); err != nil {
 		return err
+	}
+
+	var campaignID uuid.UUID
+	if req.CampaignID != "" {
+		campaignID, err = uuid.Parse(req.CampaignID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+		}
 	}
 
 	files := make([]contentcmd.PresignFileInput, 0, len(req.Files))

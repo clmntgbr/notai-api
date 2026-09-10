@@ -67,9 +67,9 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 	api.Post("/campaigns/:id/background/presign", container.CampaignHandler.PresignBackground)
 	api.Delete("/campaigns/:id/background", container.CampaignHandler.ClearBackground)
 	api.Get("/campaigns/:id/thumbnail", container.CampaignHandler.GetThumbnail)
-	api.Post("/campaigns/:id/contents/presign", container.ContentHandler.Presign)
 }
 
 func setupContentRoutes(api fiber.Router, container *di.Container) {
+	api.Post("/contents/presign", container.ContentHandler.Presign)
 	api.Get("/contents/:id/thumbnail", container.ContentHandler.GetThumbnail)
 }

@@ -14,6 +14,7 @@ type CampaignWriteRepository interface {
 	Save(ctx context.Context, campaign *Campaign) error
 	Update(ctx context.Context, campaign *Campaign) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Campaign, error)
+	GetDefaultByClientID(ctx context.Context, clientID uuid.UUID) (*Campaign, error)
 	GetByBackgroundPendingKey(ctx context.Context, pendingKey string) (*Campaign, error)
 }
 
