@@ -105,6 +105,46 @@ services:
       - api
     restart: unless-stopped
 
+  minio:
+    container_name: s3
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: devuser
+      MINIO_ROOT_PASSWORD: devpassword
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - api
+    restart: unless-stopped
+
+  mc:
+    container_name: mc
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_started
+      api:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 devuser devpassword;
+      mc mb myminio/${STORAGE_BUCKET} --ignore-existing;
+      mc mb myminio/${STORAGE_THUMBNAIL_BUCKET:-thumbnails} --ignore-existing;
+      mc admin config set myminio notify_webhook:analyze endpoint='http://api:3000/webhooks/minio/object-created' auth_token='${MINIO_WEBHOOK_SECRET}';
+      mc admin service restart myminio --json;
+      sleep 5;
+      mc event remove myminio/${STORAGE_BUCKET} --force || true;
+      for ext in jpg jpeg png webp mp4 mov avi mkv m4v mpeg mpg wmv asf flv webm ogg ogv mka; do
+        mc event add myminio/${STORAGE_BUCKET} arn:minio:sqs::analyze:webhook --event put --suffix .$$ext -p;
+      done;
+      "
+    networks:
+      - api
+
   centrifugo:
     container_name: centrifugo
     image: centrifugo/centrifugo:v5
@@ -125,7 +165,7 @@ services:
   ngrok:
     container_name: ngrok
     image: ngrok/ngrok:latest
-    command: http --url=finer-customer-marathon.ngrok-free.dev --host-header=finer-customer-marathon.ngrok-free.dev http://api:3000
+    command: http --url=choice-pretty-leech.ngrok-free.app --host-header=choice-pretty-leech.ngrok-free.app http://api:3000
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
     ports:
@@ -148,6 +188,7 @@ volumes:
   go-modules:
   go-build-cache:
   database_data:
+  minio_data:
 
 networks:
   api:
