@@ -111,7 +111,6 @@ type Content struct {
 	events []event.DomainEvent
 }
 
-// NewPendingUpload creates content waiting for a MinIO upload.
 func NewPendingUpload(
 	campaignID, clientID uuid.UUID,
 	filename, contentType string,
