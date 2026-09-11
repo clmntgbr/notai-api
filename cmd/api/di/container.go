@@ -127,6 +127,10 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
 	getContentByIDHandler := querycontent.NewGetContentByIDHandler(contentReadRepo)
+	listContentsByCampaignHandler := querycontent.NewListContentsByCampaignHandler(
+		contentReadRepo,
+		campaignReadRepo,
+	)
 
 	return &Container{
 		AuthenticateMiddleware: middleware.NewAuthenticateMiddleware(
@@ -171,6 +175,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		ContentHandler: httphandler.NewContentHandler(
 			presignContentsHandler,
 			getContentByIDHandler,
+			listContentsByCampaignHandler,
 			objectStorage,
 		),
 		RealtimeHandler: httphandler.NewRealtimeHandler(centrifugo.NewConnectionInfoCreator(env)),

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"go-api/internal/domain/paginate"
 	domaincampaign "go-api/internal/domain/campaign"
+	"go-api/internal/domain/paginate"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -47,6 +47,24 @@ func (r *campaignReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*d
 		Select(campaignSelectCols).
 		Where("deleted_at IS NULL").
 		First(&row, "id = ?", id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toCampaignView(row), nil
+}
+
+func (r *campaignReadRepository) FindDefaultByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) (*domaincampaign.CampaignView, error) {
+	var row campaignRow
+	err := r.db.WithContext(ctx).
+		Select(campaignSelectCols).
+		Where("deleted_at IS NULL AND client_id = ? AND is_default = true", clientID).
+		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

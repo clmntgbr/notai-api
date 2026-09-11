@@ -37,6 +37,14 @@ func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDet
 	}
 }
 
+func NewContentListResponseFromViews(views []domaincontent.ContentView) []ContentDetailResponse {
+	items := make([]ContentDetailResponse, 0, len(views))
+	for _, view := range views {
+		items = append(items, NewContentDetailResponseFromView(view))
+	}
+	return items
+}
+
 func NewPresignContentsResponse(result *contentcmd.PresignContentsResult) PresignContentsResponse {
 	items := make([]PresignContentItemResponse, 0, len(result.Items))
 	for _, item := range result.Items {

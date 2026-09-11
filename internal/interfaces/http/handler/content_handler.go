@@ -8,6 +8,7 @@ import (
 	contentcmd "go-api/internal/application/command/content"
 	querycontent "go-api/internal/application/query/content"
 	domaincontent "go-api/internal/domain/content"
+	"go-api/internal/domain/paginate"
 	httpctx "go-api/internal/interfaces/http/context"
 	"go-api/internal/interfaces/http/dto"
 	"go-api/internal/interfaces/http/presenter"
@@ -20,17 +21,20 @@ import (
 type ContentHandler struct {
 	presignHandler contentPresignHandler
 	getByIDHandler contentGetByIDHandler
+	listHandler    contentListByCampaignHandler
 	storage        contentStorage
 }
 
 func NewContentHandler(
 	presignHandler contentPresignHandler,
 	getByIDHandler contentGetByIDHandler,
+	listHandler contentListByCampaignHandler,
 	storage contentStorage,
 ) *ContentHandler {
 	return &ContentHandler{
 		presignHandler: presignHandler,
 		getByIDHandler: getByIDHandler,
+		listHandler:    listHandler,
 		storage:        storage,
 	}
 }
@@ -96,6 +100,91 @@ func (h *ContentHandler) Presign(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(presenter.NewPresignContentsResponse(result))
+}
+
+func (h *ContentHandler) List(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	var listQuery struct {
+		paginate.PaginateQuery
+		CampaignID string `query:"campaignId"`
+	}
+	if err := c.Bind().Query(&listQuery); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid query parameters",
+		})
+	}
+
+	var campaignID uuid.UUID
+	if listQuery.CampaignID != "" {
+		campaignID, err = uuid.Parse(listQuery.CampaignID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+		}
+	}
+
+	sortBy, orderBy := listQuery.SortBy, listQuery.OrderBy
+	listQuery.Normalize()
+	if sortBy == "" {
+		listQuery.SortBy = "created_at"
+	}
+	if orderBy == "" {
+		listQuery.OrderBy = paginate.OrderByDesc
+	}
+
+	views, total, err := h.listHandler.Handle(c.Context(), querycontent.ListContentsByCampaignQuery{
+		CampaignID: campaignID,
+		ClientID:   clientID,
+		Query:      listQuery.PaginateQuery,
+	})
+	if err != nil {
+		if err.Error() == "campaign not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to list contents"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(paginate.NewPaginateResponse(
+		presenter.NewContentListResponseFromViews(views),
+		int(total),
+		listQuery.PaginateQuery,
+	))
+}
+
+func (h *ContentHandler) GetByID(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid content id"})
+	}
+
+	view, err := h.getByIDHandler.Handle(c.Context(), querycontent.GetContentByIDQuery{ID: id})
+	if err != nil {
+		if err.Error() == "content not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Content not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to get content"})
+	}
+	if view.ClientID != clientID {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Content not found"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(presenter.NewContentDetailResponseFromView(*view))
 }
 
 func (h *ContentHandler) GetThumbnail(c fiber.Ctx) error {

@@ -20,6 +20,7 @@ type CampaignWriteRepository interface {
 
 type CampaignReadRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*CampaignView, error)
+	FindDefaultByClientID(ctx context.Context, clientID uuid.UUID) (*CampaignView, error)
 	FindPageByClientID(ctx context.Context, clientID uuid.UUID, query paginate.PaginateQuery) ([]CampaignView, int64, error)
 }
 

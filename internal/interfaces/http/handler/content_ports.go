@@ -17,6 +17,13 @@ type contentGetByIDHandler interface {
 	Handle(ctx context.Context, q querycontent.GetContentByIDQuery) (*domaincontent.ContentView, error)
 }
 
+type contentListByCampaignHandler interface {
+	Handle(
+		ctx context.Context,
+		q querycontent.ListContentsByCampaignQuery,
+	) ([]domaincontent.ContentView, int64, error)
+}
+
 type contentStorage interface {
 	GetThumbnail(ctx context.Context, key string) (io.ReadCloser, error)
 }

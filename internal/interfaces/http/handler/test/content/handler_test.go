@@ -12,6 +12,7 @@ import (
 	contentcmd "go-api/internal/application/command/content"
 	querycontent "go-api/internal/application/query/content"
 	domaincontent "go-api/internal/domain/content"
+	"go-api/internal/domain/paginate"
 	"go-api/internal/interfaces/http/handler"
 	"go-api/internal/interfaces/http/testutil"
 
@@ -46,6 +47,23 @@ func (m *mockGetContentByIDHandler) Handle(
 	return m.view, m.err
 }
 
+type mockListContentsByCampaignHandler struct {
+	called bool
+	query  querycontent.ListContentsByCampaignQuery
+	views  []domaincontent.ContentView
+	total  int64
+	err    error
+}
+
+func (m *mockListContentsByCampaignHandler) Handle(
+	_ context.Context,
+	q querycontent.ListContentsByCampaignQuery,
+) ([]domaincontent.ContentView, int64, error) {
+	m.called = true
+	m.query = q
+	return m.views, m.total, m.err
+}
+
 type mockContentStorage struct {
 	called bool
 	key    string
@@ -65,6 +83,7 @@ func (m *mockContentStorage) GetThumbnail(_ context.Context, key string) (io.Rea
 func newContentHandler(
 	presign *mockPresignContentsHandler,
 	getByID *mockGetContentByIDHandler,
+	list *mockListContentsByCampaignHandler,
 	storage *mockContentStorage,
 ) *handler.ContentHandler {
 	if presign == nil {
@@ -73,10 +92,31 @@ func newContentHandler(
 	if getByID == nil {
 		getByID = &mockGetContentByIDHandler{}
 	}
+	if list == nil {
+		list = &mockListContentsByCampaignHandler{}
+	}
 	if storage == nil {
 		storage = &mockContentStorage{}
 	}
-	return handler.NewContentHandler(presign, getByID, storage)
+	return handler.NewContentHandler(presign, getByID, list, storage)
+}
+
+func sampleContentView() *domaincontent.ContentView {
+	size := int64(1024)
+	thumb := "clients/x/campaigns/y/contents/thumbnails/z.jpg"
+	return &domaincontent.ContentView{
+		ID:           uuid.MustParse("01960000-0000-7000-8000-0000000000c1"),
+		CampaignID:   testutil.TestCampaignID,
+		ClientID:     testutil.TestClientID,
+		Filename:     "shot.png",
+		ContentType:  "image/png",
+		ObjectKey:    "clients/x/campaigns/y/contents/z.png",
+		ThumbnailKey: &thumb,
+		SizeBytes:    &size,
+		Status:       domaincontent.StatusUploaded,
+		CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+	}
 }
 
 func mustJSONRequest(t *testing.T, method, path string, body any) *http.Request {
@@ -101,7 +141,7 @@ func TestContentHandler_Presign_Success(t *testing.T) {
 			}},
 		},
 	}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -146,7 +186,7 @@ func TestContentHandler_Presign_EmptyCampaignID_UsesDefault(t *testing.T) {
 			}},
 		},
 	}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -169,7 +209,7 @@ func TestContentHandler_Presign_EmptyCampaignID_UsesDefault(t *testing.T) {
 }
 
 func TestContentHandler_Presign_Unauthorized(t *testing.T) {
-	h := newContentHandler(nil, nil, nil)
+	h := newContentHandler(nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post("/contents/presign", h.Presign)
 
@@ -185,7 +225,7 @@ func TestContentHandler_Presign_Unauthorized(t *testing.T) {
 }
 
 func TestContentHandler_Presign_MissingClient(t *testing.T) {
-	h := newContentHandler(nil, nil, nil)
+	h := newContentHandler(nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -206,7 +246,7 @@ func TestContentHandler_Presign_MissingClient(t *testing.T) {
 
 func TestContentHandler_Presign_UnsupportedMediaType(t *testing.T) {
 	presign := &mockPresignContentsHandler{err: domaincontent.ErrUnsupportedContentType}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -227,7 +267,7 @@ func TestContentHandler_Presign_UnsupportedMediaType(t *testing.T) {
 
 func TestContentHandler_Presign_TooManyFiles(t *testing.T) {
 	presign := &mockPresignContentsHandler{err: domaincontent.ErrTooManyFiles}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -248,7 +288,7 @@ func TestContentHandler_Presign_TooManyFiles(t *testing.T) {
 
 func TestContentHandler_Presign_NotFound(t *testing.T) {
 	presign := &mockPresignContentsHandler{err: errors.New("campaign not found")}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -268,7 +308,7 @@ func TestContentHandler_Presign_NotFound(t *testing.T) {
 }
 
 func TestContentHandler_Presign_InvalidCampaignID(t *testing.T) {
-	h := newContentHandler(nil, nil, nil)
+	h := newContentHandler(nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -289,7 +329,7 @@ func TestContentHandler_Presign_InvalidCampaignID(t *testing.T) {
 }
 
 func TestContentHandler_Presign_InvalidBody(t *testing.T) {
-	h := newContentHandler(nil, nil, nil)
+	h := newContentHandler(nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -310,7 +350,7 @@ func TestContentHandler_Presign_InvalidBody(t *testing.T) {
 
 func TestContentHandler_Presign_Internal(t *testing.T) {
 	presign := &mockPresignContentsHandler{err: errors.New("boom")}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -342,7 +382,7 @@ func TestContentHandler_GetThumbnail_Success(t *testing.T) {
 		},
 	}
 	storage := &mockContentStorage{body: []byte{0xff, 0xd8, 0xff}}
-	h := newContentHandler(nil, getByID, storage)
+	h := newContentHandler(nil, getByID, nil, storage)
 	app := testutil.NewTestApp()
 	app.Get(
 		"/contents/:id/thumbnail",
@@ -373,7 +413,7 @@ func TestContentHandler_GetThumbnail_Missing(t *testing.T) {
 			Status:   domaincontent.StatusPendingUpload,
 		},
 	}
-	h := newContentHandler(nil, getByID, nil)
+	h := newContentHandler(nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
 		"/contents/:id/thumbnail",
@@ -403,7 +443,7 @@ func TestContentHandler_GetThumbnail_WrongClient(t *testing.T) {
 			Status:       domaincontent.StatusUploaded,
 		},
 	}
-	h := newContentHandler(nil, getByID, nil)
+	h := newContentHandler(nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
 		"/contents/:id/thumbnail",
@@ -424,7 +464,7 @@ func TestContentHandler_GetThumbnail_WrongClient(t *testing.T) {
 }
 
 func TestContentHandler_GetThumbnail_Unauthorized(t *testing.T) {
-	h := newContentHandler(nil, nil, nil)
+	h := newContentHandler(nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get("/contents/:id/thumbnail", h.GetThumbnail)
 
@@ -442,7 +482,7 @@ func TestContentHandler_GetThumbnail_Unauthorized(t *testing.T) {
 
 func TestContentHandler_GetThumbnail_NotFound(t *testing.T) {
 	getByID := &mockGetContentByIDHandler{err: errors.New("content not found")}
-	h := newContentHandler(nil, getByID, nil)
+	h := newContentHandler(nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
 		"/contents/:id/thumbnail",
@@ -464,7 +504,7 @@ func TestContentHandler_GetThumbnail_NotFound(t *testing.T) {
 
 func TestContentHandler_Presign_EmptyFileListError(t *testing.T) {
 	presign := &mockPresignContentsHandler{err: domaincontent.ErrEmptyFileList}
-	h := newContentHandler(presign, nil, nil)
+	h := newContentHandler(presign, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
 		"/contents/presign",
@@ -479,6 +519,251 @@ func TestContentHandler_Presign_EmptyFileListError(t *testing.T) {
 		t.Fatalf("perform request: %v", err)
 	}
 	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_List_Success(t *testing.T) {
+	list := &mockListContentsByCampaignHandler{
+		views: []domaincontent.ContentView{*sampleContentView()},
+		total: 1,
+	}
+	h := newContentHandler(nil, nil, list, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/contents?campaignId="+testutil.TestCampaignID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !list.called || list.query.CampaignID != testutil.TestCampaignID || list.query.ClientID != testutil.TestClientID {
+		t.Fatalf("list query: %+v", list.query)
+	}
+	if list.query.Query.OrderBy != paginate.OrderByDesc {
+		t.Fatalf("order: %s", list.query.Query.OrderBy)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	members, _ := body["members"].([]any)
+	if len(members) != 1 {
+		t.Fatalf("members: %#v", body["members"])
+	}
+}
+
+func TestContentHandler_List_EmptyCampaignID(t *testing.T) {
+	list := &mockListContentsByCampaignHandler{views: []domaincontent.ContentView{}, total: 0}
+	h := newContentHandler(nil, nil, list, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !list.called || list.query.CampaignID != uuid.Nil {
+		t.Fatalf("expected nil campaign id, got %+v", list.query.CampaignID)
+	}
+}
+
+func TestContentHandler_List_Unauthorized(t *testing.T) {
+	h := newContentHandler(nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_List_MissingClient(t *testing.T) {
+	h := newContentHandler(nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithUserWithoutClient(testutil.TestUserID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_List_InvalidCampaignID(t *testing.T) {
+	h := newContentHandler(nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents?campaignId=bad", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_List_CampaignNotFound(t *testing.T) {
+	list := &mockListContentsByCampaignHandler{err: errors.New("campaign not found")}
+	h := newContentHandler(nil, nil, list, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_List_Internal(t *testing.T) {
+	list := &mockListContentsByCampaignHandler{err: errors.New("boom")}
+	h := newContentHandler(nil, nil, list, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_GetByID_Success(t *testing.T) {
+	getByID := &mockGetContentByIDHandler{view: sampleContentView()}
+	h := newContentHandler(nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/contents/"+sampleContentView().ID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	if body["filename"] != "shot.png" {
+		t.Fatalf("body: %#v", body)
+	}
+}
+
+func TestContentHandler_GetByID_Unauthorized(t *testing.T) {
+	h := newContentHandler(nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/contents/"+sampleContentView().ID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_GetByID_MissingClient(t *testing.T) {
+	h := newContentHandler(nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", testutil.WithUserWithoutClient(testutil.TestUserID), h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/contents/"+sampleContentView().ID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_GetByID_InvalidID(t *testing.T) {
+	h := newContentHandler(nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents/bad", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_GetByID_NotFound(t *testing.T) {
+	getByID := &mockGetContentByIDHandler{err: errors.New("content not found")}
+	h := newContentHandler(nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/contents/"+sampleContentView().ID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_GetByID_WrongClient(t *testing.T) {
+	view := sampleContentView()
+	view.ClientID = uuid.MustParse("01960000-0000-7000-8000-00000000000b")
+	getByID := &mockGetContentByIDHandler{view: view}
+	h := newContentHandler(nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents/"+view.ID.String(), nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestContentHandler_GetByID_Internal(t *testing.T) {
+	getByID := &mockGetContentByIDHandler{err: errors.New("boom")}
+	h := newContentHandler(nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/contents/"+sampleContentView().ID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }
