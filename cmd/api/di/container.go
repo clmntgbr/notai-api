@@ -131,6 +131,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		contentReadRepo,
 		campaignReadRepo,
 	)
+	getContentStatsByClientHandler := querycontent.NewGetContentStatsByClientHandler(contentReadRepo)
 
 	return &Container{
 		AuthenticateMiddleware: middleware.NewAuthenticateMiddleware(
@@ -176,6 +177,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			presignContentsHandler,
 			getContentByIDHandler,
 			listContentsByCampaignHandler,
+			getContentStatsByClientHandler,
 			objectStorage,
 		),
 		RealtimeHandler: httphandler.NewRealtimeHandler(centrifugo.NewConnectionInfoCreator(env)),

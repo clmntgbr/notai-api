@@ -24,6 +24,10 @@ type contentListByCampaignHandler interface {
 	) ([]domaincontent.ContentView, int64, error)
 }
 
+type contentStatsByClientHandler interface {
+	Handle(ctx context.Context, q querycontent.GetContentStatsByClientQuery) (*domaincontent.ContentStats, error)
+}
+
 type contentStorage interface {
 	GetThumbnail(ctx context.Context, key string) (io.ReadCloser, error)
 }

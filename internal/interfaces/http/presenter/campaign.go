@@ -8,17 +8,25 @@ import (
 	domaincampaign "go-api/internal/domain/campaign"
 )
 
+type CampaignContentCountsResponse struct {
+	Failed      int64 `json:"failed"`
+	Human       int64 `json:"human"`
+	AIGenerated int64 `json:"aiGenerated"`
+	Uncertain   int64 `json:"uncertain"`
+}
+
 type CampaignDetailResponse struct {
-	ID                     string     `json:"id"`
-	ClientID               string     `json:"clientId"`
-	Name                   string     `json:"name"`
-	IsDefault              bool       `json:"isDefault"`
-	BackgroundStatus       string     `json:"backgroundStatus"`
-	BackgroundThumbnailURL string     `json:"backgroundThumbnailUrl,omitempty"`
-	StartAt              *time.Time `json:"startAt,omitempty"`
-	EndAt                *time.Time `json:"endAt,omitempty"`
-	CreatedAt              time.Time  `json:"createdAt"`
-	UpdatedAt              time.Time  `json:"updatedAt"`
+	ID                     string                        `json:"id"`
+	ClientID               string                        `json:"clientId"`
+	Name                   string                        `json:"name"`
+	IsDefault              bool                          `json:"isDefault"`
+	BackgroundStatus       string                        `json:"backgroundStatus"`
+	BackgroundThumbnailURL string                        `json:"backgroundThumbnailUrl,omitempty"`
+	StartAt                *time.Time                    `json:"startAt,omitempty"`
+	EndAt                  *time.Time                    `json:"endAt,omitempty"`
+	ContentCounts          CampaignContentCountsResponse `json:"contentCounts"`
+	CreatedAt              time.Time                     `json:"createdAt"`
+	UpdatedAt              time.Time                     `json:"updatedAt"`
 }
 
 func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) CampaignDetailResponse {
@@ -36,6 +44,12 @@ func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) Campaig
 		),
 		StartAt: view.StartAt,
 		EndAt:   view.EndAt,
+		ContentCounts: CampaignContentCountsResponse{
+			Failed:      view.ContentFailedCount,
+			Human:       view.ContentHumanCount,
+			AIGenerated: view.ContentAIGeneratedCount,
+			Uncertain:   view.ContentUncertainCount,
+		},
 		CreatedAt: view.CreatedAt,
 		UpdatedAt: view.UpdatedAt,
 	}
@@ -54,10 +68,11 @@ func NewCampaignDetailResponseFromEntity(campaign domaincampaign.Campaign) Campa
 			campaign.BackgroundThumbnailKey,
 			campaign.UpdatedAt,
 		),
-		StartAt: campaign.StartAt,
-		EndAt:   campaign.EndAt,
-		CreatedAt: campaign.CreatedAt,
-		UpdatedAt: campaign.UpdatedAt,
+		StartAt:       campaign.StartAt,
+		EndAt:         campaign.EndAt,
+		ContentCounts: CampaignContentCountsResponse{},
+		CreatedAt:     campaign.CreatedAt,
+		UpdatedAt:     campaign.UpdatedAt,
 	}
 }
 

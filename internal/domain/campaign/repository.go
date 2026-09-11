@@ -31,12 +31,17 @@ type CampaignView struct {
 	IsDefault bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	StartAt *time.Time
-	EndAt   *time.Time
+	StartAt   *time.Time
+	EndAt     *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   string
 	BackgroundThumbnailKey string
 	BackgroundFilename     string
 	BackgroundContentType  string
+
+	ContentFailedCount      int64
+	ContentHumanCount       int64
+	ContentAIGeneratedCount int64
+	ContentUncertainCount   int64
 }

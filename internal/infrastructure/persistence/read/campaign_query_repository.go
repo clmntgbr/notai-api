@@ -18,8 +18,8 @@ type campaignRow struct {
 	Name      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	StartAt *time.Time
-	EndAt   *time.Time
+	StartAt   *time.Time
+	EndAt     *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   *string
@@ -30,6 +30,14 @@ type campaignRow struct {
 }
 
 func (campaignRow) TableName() string { return "campaigns" }
+
+type campaignContentCountRow struct {
+	CampaignID  uuid.UUID
+	Failed      int64
+	Human       int64
+	AIGenerated int64
+	Uncertain   int64
+}
 
 type campaignReadRepository struct {
 	db *gorm.DB
@@ -55,7 +63,11 @@ func (r *campaignReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*d
 		}
 		return nil, err
 	}
-	return toCampaignView(row), nil
+	view := toCampaignView(row)
+	if err := r.attachContentCounts(ctx, []*domaincampaign.CampaignView{view}); err != nil {
+		return nil, err
+	}
+	return view, nil
 }
 
 func (r *campaignReadRepository) FindDefaultByClientID(
@@ -73,7 +85,11 @@ func (r *campaignReadRepository) FindDefaultByClientID(
 		}
 		return nil, err
 	}
-	return toCampaignView(row), nil
+	view := toCampaignView(row)
+	if err := r.attachContentCounts(ctx, []*domaincampaign.CampaignView{view}); err != nil {
+		return nil, err
+	}
+	return view, nil
 }
 
 func (r *campaignReadRepository) FindPageByClientID(
@@ -117,10 +133,61 @@ func (r *campaignReadRepository) FindPageByClientID(
 	}
 
 	views := make([]domaincampaign.CampaignView, 0, len(rows))
+	ptrs := make([]*domaincampaign.CampaignView, 0, len(rows))
 	for _, row := range rows {
-		views = append(views, *toCampaignView(row))
+		view := toCampaignView(row)
+		views = append(views, *view)
+		ptrs = append(ptrs, &views[len(views)-1])
+	}
+	if err := r.attachContentCounts(ctx, ptrs); err != nil {
+		return nil, 0, err
 	}
 	return views, total, nil
+}
+
+func (r *campaignReadRepository) attachContentCounts(
+	ctx context.Context,
+	views []*domaincampaign.CampaignView,
+) error {
+	if len(views) == 0 {
+		return nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(views))
+	indexByID := make(map[uuid.UUID]*domaincampaign.CampaignView, len(views))
+	for _, view := range views {
+		ids = append(ids, view.ID)
+		indexByID[view.ID] = view
+	}
+
+	var rows []campaignContentCountRow
+	err := r.db.WithContext(ctx).
+		Table("contents").
+		Select(`
+			campaign_id,
+			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE label = 'human') AS human,
+			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE label = 'uncertain') AS uncertain
+		`).
+		Where("campaign_id IN ?", ids).
+		Group("campaign_id").
+		Scan(&rows).Error
+	if err != nil {
+		return err
+	}
+
+	for _, row := range rows {
+		view, ok := indexByID[row.CampaignID]
+		if !ok {
+			continue
+		}
+		view.ContentFailedCount = row.Failed
+		view.ContentHumanCount = row.Human
+		view.ContentAIGeneratedCount = row.AIGenerated
+		view.ContentUncertainCount = row.Uncertain
+	}
+	return nil
 }
 
 func derefString(s *string) string {
@@ -142,8 +209,8 @@ func toCampaignView(row campaignRow) *domaincampaign.CampaignView {
 		IsDefault:              row.IsDefault,
 		CreatedAt:              row.CreatedAt,
 		UpdatedAt:              row.UpdatedAt,
-		StartAt:              row.StartAt,
-		EndAt:                row.EndAt,
+		StartAt:                row.StartAt,
+		EndAt:                  row.EndAt,
 		BackgroundStatus:       status,
 		BackgroundPendingKey:   derefString(row.BackgroundPendingKey),
 		BackgroundThumbnailKey: derefString(row.BackgroundThumbnailKey),

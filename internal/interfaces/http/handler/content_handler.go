@@ -22,6 +22,7 @@ type ContentHandler struct {
 	presignHandler contentPresignHandler
 	getByIDHandler contentGetByIDHandler
 	listHandler    contentListByCampaignHandler
+	statsHandler   contentStatsByClientHandler
 	storage        contentStorage
 }
 
@@ -29,12 +30,14 @@ func NewContentHandler(
 	presignHandler contentPresignHandler,
 	getByIDHandler contentGetByIDHandler,
 	listHandler contentListByCampaignHandler,
+	statsHandler contentStatsByClientHandler,
 	storage contentStorage,
 ) *ContentHandler {
 	return &ContentHandler{
 		presignHandler: presignHandler,
 		getByIDHandler: getByIDHandler,
 		listHandler:    listHandler,
+		statsHandler:   statsHandler,
 		storage:        storage,
 	}
 }
@@ -156,6 +159,26 @@ func (h *ContentHandler) List(c fiber.Ctx) error {
 		int(total),
 		listQuery.PaginateQuery,
 	))
+}
+
+func (h *ContentHandler) Stats(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	stats, err := h.statsHandler.Handle(c.Context(), querycontent.GetContentStatsByClientQuery{
+		ClientID: clientID,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to get content stats"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(presenter.NewContentStatsResponse(stats))
 }
 
 func (h *ContentHandler) GetByID(c fiber.Ctx) error {

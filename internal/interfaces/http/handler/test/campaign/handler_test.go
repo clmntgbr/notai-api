@@ -231,11 +231,15 @@ func sampleCampaignEntity() *domaincampaign.Campaign {
 func sampleCampaignView() *domaincampaign.CampaignView {
 	e := sampleCampaignEntity()
 	return &domaincampaign.CampaignView{
-		ID:        e.ID,
-		ClientID:  e.ClientID,
-		Name:      e.Name,
-		CreatedAt: e.CreatedAt,
-		UpdatedAt: e.UpdatedAt,
+		ID:                      e.ID,
+		ClientID:                e.ClientID,
+		Name:                    e.Name,
+		CreatedAt:               e.CreatedAt,
+		UpdatedAt:               e.UpdatedAt,
+		ContentFailedCount:      1,
+		ContentHumanCount:       2,
+		ContentAIGeneratedCount: 3,
+		ContentUncertainCount:   4,
 	}
 }
 
@@ -273,7 +277,7 @@ func TestCampaignHandler_Create_InvalidSchedule(t *testing.T) {
 	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{
-		"name":      "Spring Launch",
+		"name":    "Spring Launch",
 		"startAt": "2026-06-01T00:00:00Z",
 		"endAt":   "2026-01-01T00:00:00Z",
 	}))
@@ -370,6 +374,19 @@ func TestCampaignHandler_List_Success(t *testing.T) {
 	if list.query.Query.OrderBy != paginate.OrderByDesc {
 		t.Fatalf("order: %s", list.query.Query.OrderBy)
 	}
+	body := testutil.DecodeJSONMap(t, resp)
+	members, ok := body["members"].([]any)
+	if !ok || len(members) != 1 {
+		t.Fatalf("members: %#v", body["members"])
+	}
+	member, _ := members[0].(map[string]any)
+	counts, ok := member["contentCounts"].(map[string]any)
+	if !ok {
+		t.Fatalf("contentCounts: %#v", member["contentCounts"])
+	}
+	if counts["failed"] != float64(1) || counts["human"] != float64(2) {
+		t.Fatalf("contentCounts: %#v", counts)
+	}
 }
 
 func TestCampaignHandler_List_MissingActiveClient(t *testing.T) {
@@ -398,6 +415,15 @@ func TestCampaignHandler_GetByID_Success(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	counts, ok := body["contentCounts"].(map[string]any)
+	if !ok {
+		t.Fatalf("contentCounts: %#v", body["contentCounts"])
+	}
+	if counts["failed"] != float64(1) || counts["human"] != float64(2) ||
+		counts["aiGenerated"] != float64(3) || counts["uncertain"] != float64(4) {
+		t.Fatalf("contentCounts: %#v", counts)
 	}
 }
 
@@ -515,7 +541,7 @@ func TestCampaignHandler_Update_InvalidSchedule(t *testing.T) {
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{
-		"name":      "Updated",
+		"name":    "Updated",
 		"startAt": "2026-06-01T00:00:00Z",
 		"endAt":   "2026-01-01T00:00:00Z",
 	}))

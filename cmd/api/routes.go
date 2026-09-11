@@ -71,6 +71,7 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 
 func setupContentRoutes(api fiber.Router, container *di.Container) {
 	api.Get("/contents", container.ContentHandler.List)
+	api.Get("/contents/stats", container.ContentHandler.Stats)
 	api.Post("/contents/presign", container.ContentHandler.Presign)
 	api.Get("/contents/:id", container.ContentHandler.GetByID)
 	api.Get("/contents/:id/thumbnail", container.ContentHandler.GetThumbnail)

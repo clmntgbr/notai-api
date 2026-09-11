@@ -24,6 +24,14 @@ type ContentReadRepository interface {
 		campaignID uuid.UUID,
 		query paginate.PaginateQuery,
 	) ([]ContentView, int64, error)
+	CountStatsByClientID(ctx context.Context, clientID uuid.UUID) (*ContentStats, error)
+}
+
+type ContentStats struct {
+	Failed      int64
+	Human       int64
+	AIGenerated int64
+	Uncertain   int64
 }
 
 type ContentView struct {

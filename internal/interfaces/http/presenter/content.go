@@ -51,6 +51,25 @@ func NewContentListResponseFromViews(views []domaincontent.ContentView) []Conten
 	return items
 }
 
+type ContentStatsResponse struct {
+	Failed      int64 `json:"failed"`
+	Human       int64 `json:"human"`
+	AIGenerated int64 `json:"aiGenerated"`
+	Uncertain   int64 `json:"uncertain"`
+}
+
+func NewContentStatsResponse(stats *domaincontent.ContentStats) ContentStatsResponse {
+	if stats == nil {
+		return ContentStatsResponse{}
+	}
+	return ContentStatsResponse{
+		Failed:      stats.Failed,
+		Human:       stats.Human,
+		AIGenerated: stats.AIGenerated,
+		Uncertain:   stats.Uncertain,
+	}
+}
+
 func NewPresignContentsResponse(result *contentcmd.PresignContentsResult) PresignContentsResponse {
 	items := make([]PresignContentItemResponse, 0, len(result.Items))
 	for _, item := range result.Items {

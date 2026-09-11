@@ -97,6 +97,37 @@ func (r *contentReadRepository) FindPageByCampaignID(
 	return views, total, nil
 }
 
+func (r *contentReadRepository) CountStatsByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) (*domaincontent.ContentStats, error) {
+	var row struct {
+		Failed      int64
+		Human       int64
+		AIGenerated int64
+		Uncertain   int64
+	}
+	err := r.db.WithContext(ctx).
+		Table("contents").
+		Select(`
+			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE label = 'human') AS human,
+			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE label = 'uncertain') AS uncertain
+		`).
+		Where("client_id = ?", clientID).
+		Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &domaincontent.ContentStats{
+		Failed:      row.Failed,
+		Human:       row.Human,
+		AIGenerated: row.AIGenerated,
+		Uncertain:   row.Uncertain,
+	}, nil
+}
+
 func toContentView(row contentRow) *domaincontent.ContentView {
 	var label *domaincontent.Label
 	if row.Label != nil && *row.Label != "" {
