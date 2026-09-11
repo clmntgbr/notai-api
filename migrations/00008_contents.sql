@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS contents (
     thumbnail_key TEXT NULL,
     size_bytes BIGINT NULL,
     status TEXT NOT NULL DEFAULT 'pending_upload',
+    label TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT contents_status_check CHECK (
@@ -17,10 +18,11 @@ CREATE TABLE IF NOT EXISTS contents (
             'pending_upload',
             'uploaded',
             'analyzing',
-            'verified',
-            'flagged',
             'failed'
         )
+    ),
+    CONSTRAINT contents_label_check CHECK (
+        label IS NULL OR label IN ('human', 'ai_generated', 'uncertain')
     )
 );
 

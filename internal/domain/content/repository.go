@@ -36,6 +36,7 @@ type ContentView struct {
 	ThumbnailKey *string
 	SizeBytes    *int64
 	Status       Status
+	Label        *Label
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

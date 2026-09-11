@@ -18,6 +18,7 @@ type ContentModel struct {
 	ThumbnailKey *string   `gorm:"column:thumbnail_key"`
 	SizeBytes    *int64    `gorm:"column:size_bytes"`
 	Status       string    `gorm:"column:status"`
+	Label        *string   `gorm:"column:label"`
 	CreatedAt    time.Time `gorm:"column:created_at"`
 	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
@@ -37,6 +38,7 @@ func contentModelFromDomain(c *domaincontent.Content) *ContentModel {
 		ThumbnailKey: c.ThumbnailKey,
 		SizeBytes:    c.SizeBytes,
 		Status:       string(c.Status),
+		Label:        labelStringPtr(c.Label),
 		CreatedAt:    c.CreatedAt,
 		UpdatedAt:    c.UpdatedAt,
 	}
@@ -53,7 +55,24 @@ func contentDomainFromModel(m *ContentModel) *domaincontent.Content {
 		ThumbnailKey: m.ThumbnailKey,
 		SizeBytes:    m.SizeBytes,
 		Status:       domaincontent.Status(m.Status),
+		Label:        labelFromStringPtr(m.Label),
 		CreatedAt:    m.CreatedAt,
 		UpdatedAt:    m.UpdatedAt,
 	}
+}
+
+func labelStringPtr(label *domaincontent.Label) *string {
+	if label == nil {
+		return nil
+	}
+	s := string(*label)
+	return &s
+}
+
+func labelFromStringPtr(s *string) *domaincontent.Label {
+	if s == nil || *s == "" {
+		return nil
+	}
+	label := domaincontent.Label(*s)
+	return &label
 }

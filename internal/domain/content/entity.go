@@ -18,9 +18,15 @@ const (
 	StatusPendingUpload Status = "pending_upload"
 	StatusUploaded      Status = "uploaded"
 	StatusAnalyzing     Status = "analyzing"
-	StatusVerified      Status = "verified"
-	StatusFlagged       Status = "flagged"
 	StatusFailed        Status = "failed"
+)
+
+type Label string
+
+const (
+	LabelHuman       Label = "human"
+	LabelAIGenerated Label = "ai_generated"
+	LabelUncertain   Label = "uncertain"
 )
 
 var (
@@ -29,6 +35,7 @@ var (
 	ErrUnsupportedContentType = errors.New("unsupported content file type")
 	ErrTooManyFiles           = errors.New("too many files")
 	ErrEmptyFileList          = errors.New("files are required")
+	ErrInvalidLabel           = errors.New("invalid content label")
 )
 
 const (
@@ -59,6 +66,15 @@ func ValidateContentFilename(filename string) error {
 	return nil
 }
 
+func ValidateLabel(label Label) error {
+	switch label {
+	case LabelHuman, LabelAIGenerated, LabelUncertain:
+		return nil
+	default:
+		return ErrInvalidLabel
+	}
+}
+
 func IsContentObjectKey(key string) bool {
 	return strings.Contains(key, "/contents/") && !IsThumbnailObjectKey(key)
 }
@@ -85,6 +101,7 @@ type Content struct {
 	ObjectKey    string
 	ThumbnailKey *string
 	SizeBytes    *int64
+	Label        *Label
 
 	Status Status
 
@@ -196,7 +213,23 @@ func (c *Content) StartAnalyzing() error {
 		return ErrInvalidTransition
 	}
 	now := time.Now().UTC()
+	c.Label = nil
 	c.Status = StatusAnalyzing
+	c.UpdatedAt = now
+	c.recordStatusChanged(now)
+	return nil
+}
+
+func (c *Content) CompleteAnalysis(label Label) error {
+	if c.Status != StatusAnalyzing {
+		return ErrInvalidTransition
+	}
+	if err := ValidateLabel(label); err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	c.Label = &label
+	c.Status = StatusUploaded
 	c.UpdatedAt = now
 	c.recordStatusChanged(now)
 	return nil
@@ -226,12 +259,17 @@ func (c *Content) SetThumbnailKey(key string) {
 }
 
 func (c *Content) recordStatusChanged(at time.Time) {
+	label := ""
+	if c.Label != nil {
+		label = string(*c.Label)
+	}
 	c.recordEvent(ContentStatusChanged{
 		ID:         uuid.New().String(),
 		ContentID:  c.ID.String(),
 		CampaignID: c.CampaignID.String(),
 		ClientID:   c.ClientID.String(),
 		Status:     string(c.Status),
+		Label:      label,
 		Timestamp:  at,
 	})
 }

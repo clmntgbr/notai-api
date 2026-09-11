@@ -47,6 +47,7 @@ type ContentStatusChanged struct {
 	CampaignID string    `json:"campaignId"`
 	ClientID   string    `json:"clientId"`
 	Status     string    `json:"status"`
+	Label      string    `json:"label,omitempty"`
 	Timestamp  time.Time `json:"timestamp"`
 }
 

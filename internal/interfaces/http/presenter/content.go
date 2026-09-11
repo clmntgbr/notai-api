@@ -16,6 +16,7 @@ type ContentDetailResponse struct {
 	Filename     string    `json:"filename"`
 	ContentType  string    `json:"contentType"`
 	Status       string    `json:"status"`
+	Label        string    `json:"label,omitempty"`
 	SizeBytes    *int64    `json:"sizeBytes,omitempty"`
 	ThumbnailURL string    `json:"thumbnailUrl,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
@@ -23,6 +24,10 @@ type ContentDetailResponse struct {
 }
 
 func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDetailResponse {
+	label := ""
+	if view.Label != nil {
+		label = string(*view.Label)
+	}
 	return ContentDetailResponse{
 		ID:           view.ID.String(),
 		CampaignID:   view.CampaignID.String(),
@@ -30,6 +35,7 @@ func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDet
 		Filename:     view.Filename,
 		ContentType:  view.ContentType,
 		Status:       string(view.Status),
+		Label:        label,
 		SizeBytes:    view.SizeBytes,
 		ThumbnailURL: contentThumbnailURL(view),
 		CreatedAt:    view.CreatedAt,
