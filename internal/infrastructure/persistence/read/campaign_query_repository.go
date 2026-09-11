@@ -18,6 +18,8 @@ type campaignRow struct {
 	Name      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	StartAt *time.Time
+	EndAt   *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   *string
@@ -37,7 +39,7 @@ func NewCampaignReadRepository(db *gorm.DB) domaincampaign.CampaignReadRepositor
 	return &campaignReadRepository{db: db}
 }
 
-const campaignSelectCols = "id, client_id, name, created_at, updated_at, is_default, " +
+const campaignSelectCols = "id, client_id, name, created_at, updated_at, start_at, end_at, is_default, " +
 	"background_status, background_pending_key, background_thumbnail_key, " +
 	"background_filename, background_content_type"
 
@@ -86,6 +88,10 @@ func (r *campaignReadRepository) FindPageByClientID(
 		query.SortBy = "updated_at"
 	case "name":
 		query.SortBy = "name"
+	case "start_at":
+		query.SortBy = "start_at"
+	case "end_at":
+		query.SortBy = "end_at"
 	default:
 		query.SortBy = "created_at"
 	}
@@ -136,6 +142,8 @@ func toCampaignView(row campaignRow) *domaincampaign.CampaignView {
 		IsDefault:              row.IsDefault,
 		CreatedAt:              row.CreatedAt,
 		UpdatedAt:              row.UpdatedAt,
+		StartAt:              row.StartAt,
+		EndAt:                row.EndAt,
 		BackgroundStatus:       status,
 		BackgroundPendingKey:   derefString(row.BackgroundPendingKey),
 		BackgroundThumbnailKey: derefString(row.BackgroundThumbnailKey),

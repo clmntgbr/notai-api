@@ -3,6 +3,7 @@ package campaign
 import (
 	"context"
 	"errors"
+	"time"
 
 	domaincampaign "go-api/internal/domain/campaign"
 	"go-api/internal/domain/port"
@@ -11,8 +12,10 @@ import (
 )
 
 type UpdateCampaignCommand struct {
-	ID   uuid.UUID
-	Name string
+	ID        uuid.UUID
+	Name      string
+	StartAt *time.Time
+	EndAt   *time.Time
 }
 
 type UpdateCampaignHandler struct {
@@ -41,7 +44,7 @@ func (h *UpdateCampaignHandler) Handle(ctx context.Context, cmd UpdateCampaignCo
 			return errors.New("campaign not found")
 		}
 
-		if err := campaign.ApplyUpdate(cmd.Name); err != nil {
+		if err := campaign.ApplyUpdate(cmd.Name, cmd.StartAt, cmd.EndAt); err != nil {
 			return err
 		}
 

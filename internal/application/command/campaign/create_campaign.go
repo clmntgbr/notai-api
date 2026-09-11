@@ -3,6 +3,7 @@ package campaign
 import (
 	"context"
 	"errors"
+	"time"
 
 	domaincampaign "go-api/internal/domain/campaign"
 	"go-api/internal/domain/port"
@@ -11,8 +12,10 @@ import (
 )
 
 type CreateCampaignCommand struct {
-	Name     string
-	ClientID uuid.UUID
+	Name      string
+	ClientID  uuid.UUID
+	StartAt *time.Time
+	EndAt   *time.Time
 }
 
 type CreateCampaignHandler struct {
@@ -38,15 +41,21 @@ func (h *CreateCampaignHandler) Handle(
 		return nil, errors.New("clientId is required")
 	}
 
-	campaign := domaincampaign.NewCampaign(cmd.Name, cmd.ClientID)
+	campaign, err := domaincampaign.NewCampaign(cmd.Name, cmd.ClientID, cmd.StartAt, cmd.EndAt)
+	if err != nil {
+		return nil, err
+	}
 
-	err := h.repo.WithTransaction(ctx, func(txCtx context.Context) error {
+	err = h.repo.WithTransaction(ctx, func(txCtx context.Context) error {
 		if err := h.repo.Save(txCtx, campaign); err != nil {
 			return err
 		}
 		return h.outbox.StoreEvents(txCtx, campaign.PullEvents())
 	})
 	if err != nil {
+		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
+			return nil, err
+		}
 		return nil, errors.New("failed to create campaign")
 	}
 

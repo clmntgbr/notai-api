@@ -15,6 +15,8 @@ type CampaignModel struct {
 	CreatedAt time.Time  `gorm:"column:created_at"`
 	UpdatedAt time.Time  `gorm:"column:updated_at"`
 	DeletedAt *time.Time `gorm:"column:deleted_at"`
+	StartAt *time.Time `gorm:"column:start_at"`
+	EndAt   *time.Time `gorm:"column:end_at"`
 
 	BackgroundStatus       string  `gorm:"column:background_status"`
 	BackgroundPendingKey   *string `gorm:"column:background_pending_key"`
@@ -54,6 +56,8 @@ func campaignModelFromDomain(c *domaincampaign.Campaign) *CampaignModel {
 		CreatedAt:              c.CreatedAt,
 		UpdatedAt:              c.UpdatedAt,
 		DeletedAt:              c.DeletedAt,
+		StartAt:              c.StartAt,
+		EndAt:                c.EndAt,
 		BackgroundStatus:       status,
 		BackgroundPendingKey:   optionalNonEmpty(c.BackgroundPendingKey),
 		BackgroundThumbnailKey: optionalNonEmpty(c.BackgroundThumbnailKey),
@@ -75,6 +79,8 @@ func campaignDomainFromModel(m *CampaignModel) *domaincampaign.Campaign {
 		CreatedAt:              m.CreatedAt,
 		UpdatedAt:              m.UpdatedAt,
 		DeletedAt:              m.DeletedAt,
+		StartAt:              m.StartAt,
+		EndAt:                m.EndAt,
 		BackgroundStatus:       status,
 		BackgroundPendingKey:   derefString(m.BackgroundPendingKey),
 		BackgroundThumbnailKey: derefString(m.BackgroundThumbnailKey),

@@ -76,10 +76,15 @@ func (h *CampaignHandler) Create(c fiber.Ctx) error {
 	}
 
 	campaign, err := h.createHandler.Handle(c.Context(), campaigncmd.CreateCampaignCommand{
-		Name:     req.Name,
-		ClientID: clientID,
+		Name:      req.Name,
+		ClientID:  clientID,
+		StartAt: req.StartAt,
+		EndAt:   req.EndAt,
 	})
 	if err != nil {
+		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "endAt must be after startAt"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to create campaign"})
 	}
 
@@ -212,8 +217,10 @@ func (h *CampaignHandler) Update(c fiber.Ctx) error {
 	}
 
 	err = h.updateHandler.Handle(c.Context(), campaigncmd.UpdateCampaignCommand{
-		ID:   id,
-		Name: req.Name,
+		ID:        id,
+		Name:      req.Name,
+		StartAt: req.StartAt,
+		EndAt:   req.EndAt,
 	})
 	if err != nil {
 		if errors.Is(err, domaincampaign.ErrDefaultCampaignProtected) {
@@ -221,6 +228,9 @@ func (h *CampaignHandler) Update(c fiber.Ctx) error {
 				"message": "Default campaign cannot be modified",
 				"code":    "DEFAULT_CAMPAIGN_PROTECTED",
 			})
+		}
+		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "endAt must be after startAt"})
 		}
 		if err.Error() == "campaign not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})

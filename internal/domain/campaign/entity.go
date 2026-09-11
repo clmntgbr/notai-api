@@ -11,6 +11,7 @@ import (
 
 var (
 	ErrDefaultCampaignProtected = errors.New("default campaign cannot be modified")
+	ErrInvalidSchedule          = errors.New("endAt must be after startAt")
 )
 
 type Campaign struct {
@@ -21,6 +22,8 @@ type Campaign struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
+	StartAt *time.Time
+	EndAt   *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   string
@@ -33,7 +36,17 @@ type Campaign struct {
 
 const DefaultCampaignName = "Default"
 
-func NewCampaign(name string, clientID uuid.UUID) *Campaign {
+func ValidateSchedule(startAt, endAt *time.Time) error {
+	if startAt != nil && endAt != nil && endAt.Before(*startAt) {
+		return ErrInvalidSchedule
+	}
+	return nil
+}
+
+func NewCampaign(name string, clientID uuid.UUID, startAt, endAt *time.Time) (*Campaign, error) {
+	if err := ValidateSchedule(startAt, endAt); err != nil {
+		return nil, err
+	}
 	now := time.Now().UTC()
 	c := &Campaign{
 		ID:               uuid.New(),
@@ -42,6 +55,8 @@ func NewCampaign(name string, clientID uuid.UUID) *Campaign {
 		IsDefault:        false,
 		CreatedAt:        now,
 		UpdatedAt:        now,
+		StartAt:        cloneTimePtr(startAt),
+		EndAt:          cloneTimePtr(endAt),
 		BackgroundStatus: BackgroundStatusNone,
 	}
 	c.recordEvent(CampaignCreated{
@@ -50,9 +65,11 @@ func NewCampaign(name string, clientID uuid.UUID) *Campaign {
 		ClientID:   clientID.String(),
 		Name:       c.Name,
 		IsDefault:  false,
+		StartAt:  timePtrValue(c.StartAt),
+		EndAt:    timePtrValue(c.EndAt),
 		Timestamp:  now,
 	})
-	return c
+	return c, nil
 }
 
 func NewDefaultCampaign(clientID uuid.UUID) *Campaign {
@@ -87,23 +104,42 @@ func (c *Campaign) recordEvent(e event.DomainEvent) {
 	c.events = append(c.events, e)
 }
 
-func (c *Campaign) ApplyUpdate(name string) error {
+func (c *Campaign) ApplyUpdate(name string, startAt, endAt *time.Time) error {
 	if c.IsDefault {
 		return ErrDefaultCampaignProtected
 	}
 	if c.IsDeleted() {
 		return errors.New("campaign not found")
 	}
+	if err := ValidateSchedule(startAt, endAt); err != nil {
+		return err
+	}
 	c.Name = name
+	c.StartAt = cloneTimePtr(startAt)
+	c.EndAt = cloneTimePtr(endAt)
 	c.UpdatedAt = time.Now().UTC()
 	c.recordEvent(CampaignUpdated{
 		ID:         uuid.New().String(),
 		CampaignID: c.ID.String(),
 		ClientID:   c.ClientID.String(),
 		Name:       c.Name,
+		StartAt:  timePtrValue(c.StartAt),
+		EndAt:    timePtrValue(c.EndAt),
 		Timestamp:  c.UpdatedAt,
 	})
 	return nil
+}
+
+func cloneTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copied := value.UTC()
+	return &copied
+}
+
+func timePtrValue(value *time.Time) *time.Time {
+	return cloneTimePtr(value)
 }
 
 func (c *Campaign) IsDeleted() bool {

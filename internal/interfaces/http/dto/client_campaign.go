@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type CreateClientRequest struct {
 	Name string `json:"name" validate:"required,min=1,max=255"`
 }
@@ -13,9 +15,13 @@ type SetCurrentClientRequest struct {
 }
 
 type CreateCampaignRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=255"`
+	Name      string     `json:"name" validate:"required,min=1,max=255"`
+	StartAt *time.Time `json:"startAt"`
+	EndAt   *time.Time `json:"endAt"`
 }
 
 type UpdateCampaignRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=255"`
+	Name      string     `json:"name" validate:"required,min=1,max=255"`
+	StartAt *time.Time `json:"startAt"`
+	EndAt   *time.Time `json:"endAt"`
 }

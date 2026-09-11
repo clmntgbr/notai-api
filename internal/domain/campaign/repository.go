@@ -31,6 +31,8 @@ type CampaignView struct {
 	IsDefault bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	StartAt *time.Time
+	EndAt   *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   string

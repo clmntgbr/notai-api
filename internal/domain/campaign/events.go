@@ -10,12 +10,14 @@ const (
 )
 
 type CampaignCreated struct {
-	ID         string    `json:"eventId"`
-	CampaignID string    `json:"campaignId"`
-	ClientID   string    `json:"clientId"`
-	Name       string    `json:"name"`
-	IsDefault  bool      `json:"isDefault"`
-	Timestamp  time.Time `json:"timestamp"`
+	ID         string     `json:"eventId"`
+	CampaignID string     `json:"campaignId"`
+	ClientID   string     `json:"clientId"`
+	Name       string     `json:"name"`
+	IsDefault  bool       `json:"isDefault"`
+	StartAt  *time.Time `json:"startAt,omitempty"`
+	EndAt    *time.Time `json:"endAt,omitempty"`
+	Timestamp  time.Time  `json:"timestamp"`
 }
 
 func (e CampaignCreated) EventID() string       { return e.ID }
@@ -24,11 +26,13 @@ func (e CampaignCreated) AggregateID() string   { return e.CampaignID }
 func (e CampaignCreated) OccurredAt() time.Time { return e.Timestamp }
 
 type CampaignUpdated struct {
-	ID         string    `json:"eventId"`
-	CampaignID string    `json:"campaignId"`
-	ClientID   string    `json:"clientId"`
-	Name       string    `json:"name"`
-	Timestamp  time.Time `json:"timestamp"`
+	ID         string     `json:"eventId"`
+	CampaignID string     `json:"campaignId"`
+	ClientID   string     `json:"clientId"`
+	Name       string     `json:"name"`
+	StartAt  *time.Time `json:"startAt,omitempty"`
+	EndAt    *time.Time `json:"endAt,omitempty"`
+	Timestamp  time.Time  `json:"timestamp"`
 }
 
 func (e CampaignUpdated) EventID() string       { return e.ID }

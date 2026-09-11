@@ -12,9 +12,9 @@ import (
 	campaigncmd "go-api/internal/application/command/campaign"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
-	"go-api/internal/domain/paginate"
 	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
+	"go-api/internal/domain/paginate"
 	"go-api/internal/interfaces/http/handler"
 	"go-api/internal/interfaces/http/testutil"
 
@@ -266,6 +266,25 @@ func TestCampaignHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestCampaignHandler_Create_InvalidSchedule(t *testing.T) {
+	create := &mockCreateCampaignHandler{err: domaincampaign.ErrInvalidSchedule}
+	h := newCampaignHandler(create, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{
+		"name":      "Spring Launch",
+		"startAt": "2026-06-01T00:00:00Z",
+		"endAt":   "2026-01-01T00:00:00Z",
+	}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
 func TestCampaignHandler_Create_Unauthorized(t *testing.T) {
 	h := newCampaignHandler(nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
@@ -482,6 +501,29 @@ func TestCampaignHandler_Update_Success(t *testing.T) {
 	}
 	if !update.called || update.cmd.Name != "Updated" {
 		t.Fatalf("update: %+v", update.cmd)
+	}
+}
+
+func TestCampaignHandler_Update_InvalidSchedule(t *testing.T) {
+	update := &mockUpdateCampaignHandler{err: domaincampaign.ErrInvalidSchedule}
+	getByID := &mockGetCampaignByIDHandler{
+		views: []*domaincampaign.CampaignView{sampleCampaignView()},
+		errs:  []error{nil},
+	}
+	h := newCampaignHandler(nil, update, nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{
+		"name":      "Updated",
+		"startAt": "2026-06-01T00:00:00Z",
+		"endAt":   "2026-01-01T00:00:00Z",
+	}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }
 

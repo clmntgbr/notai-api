@@ -9,14 +9,16 @@ import (
 )
 
 type CampaignDetailResponse struct {
-	ID                     string    `json:"id"`
-	ClientID               string    `json:"clientId"`
-	Name                   string    `json:"name"`
-	IsDefault              bool      `json:"isDefault"`
-	BackgroundStatus       string    `json:"backgroundStatus"`
-	BackgroundThumbnailURL string    `json:"backgroundThumbnailUrl,omitempty"`
-	CreatedAt              time.Time `json:"createdAt"`
-	UpdatedAt              time.Time `json:"updatedAt"`
+	ID                     string     `json:"id"`
+	ClientID               string     `json:"clientId"`
+	Name                   string     `json:"name"`
+	IsDefault              bool       `json:"isDefault"`
+	BackgroundStatus       string     `json:"backgroundStatus"`
+	BackgroundThumbnailURL string     `json:"backgroundThumbnailUrl,omitempty"`
+	StartAt              *time.Time `json:"startAt,omitempty"`
+	EndAt                *time.Time `json:"endAt,omitempty"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	UpdatedAt              time.Time  `json:"updatedAt"`
 }
 
 func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) CampaignDetailResponse {
@@ -32,6 +34,8 @@ func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) Campaig
 			view.BackgroundThumbnailKey,
 			view.UpdatedAt,
 		),
+		StartAt: view.StartAt,
+		EndAt:   view.EndAt,
 		CreatedAt: view.CreatedAt,
 		UpdatedAt: view.UpdatedAt,
 	}
@@ -50,6 +54,8 @@ func NewCampaignDetailResponseFromEntity(campaign domaincampaign.Campaign) Campa
 			campaign.BackgroundThumbnailKey,
 			campaign.UpdatedAt,
 		),
+		StartAt: campaign.StartAt,
+		EndAt:   campaign.EndAt,
 		CreatedAt: campaign.CreatedAt,
 		UpdatedAt: campaign.UpdatedAt,
 	}
