@@ -6,21 +6,32 @@ import (
 	"time"
 
 	contentcmd "go-api/internal/application/command/content"
+	domaincampaign "go-api/internal/domain/campaign"
 	domaincontent "go-api/internal/domain/content"
 )
 
 type ContentDetailResponse struct {
-	ID           string    `json:"id"`
-	CampaignID   string    `json:"campaignId"`
-	ClientID     string    `json:"clientId"`
-	Filename     string    `json:"filename"`
-	ContentType  string    `json:"contentType"`
-	Status       string    `json:"status"`
-	Label        string    `json:"label,omitempty"`
-	SizeBytes    *int64    `json:"sizeBytes,omitempty"`
-	ThumbnailURL string    `json:"thumbnailUrl,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID           string                   `json:"id"`
+	CampaignID   string                   `json:"campaignId"`
+	ClientID     string                   `json:"clientId"`
+	Filename     string                   `json:"filename"`
+	ContentType  string                   `json:"contentType"`
+	Status       string                   `json:"status"`
+	Label        string                   `json:"label,omitempty"`
+	SizeBytes    *int64                   `json:"sizeBytes,omitempty"`
+	ThumbnailURL string                   `json:"thumbnailUrl,omitempty"`
+	Campaign     *ContentCampaignResponse `json:"campaign,omitempty"`
+	CreatedAt    time.Time                `json:"createdAt"`
+	UpdatedAt    time.Time                `json:"updatedAt"`
+}
+
+type ContentCampaignResponse struct {
+	ID                     string     `json:"id"`
+	Name                   string     `json:"name"`
+	BackgroundStatus       string     `json:"backgroundStatus"`
+	BackgroundThumbnailURL string     `json:"backgroundThumbnailUrl,omitempty"`
+	StartAt                *time.Time `json:"startAt,omitempty"`
+	EndAt                  *time.Time `json:"endAt,omitempty"`
 }
 
 func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDetailResponse {
@@ -43,12 +54,37 @@ func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDet
 	}
 }
 
-func NewContentListResponseFromViews(views []domaincontent.ContentView) []ContentDetailResponse {
+func NewContentListResponseFromViews(
+	views []domaincontent.ContentView,
+	campaign *domaincampaign.CampaignView,
+) []ContentDetailResponse {
 	items := make([]ContentDetailResponse, 0, len(views))
+	campaignResp := contentCampaignResponse(campaign)
 	for _, view := range views {
-		items = append(items, NewContentDetailResponseFromView(view))
+		item := NewContentDetailResponseFromView(view)
+		item.Campaign = campaignResp
+		items = append(items, item)
 	}
 	return items
+}
+
+func contentCampaignResponse(campaign *domaincampaign.CampaignView) *ContentCampaignResponse {
+	if campaign == nil || campaign.IsDefault {
+		return nil
+	}
+	return &ContentCampaignResponse{
+		ID:               campaign.ID.String(),
+		Name:             campaign.Name,
+		BackgroundStatus: backgroundStatusOrNone(campaign.BackgroundStatus),
+		BackgroundThumbnailURL: backgroundThumbnailURL(
+			campaign.ID.String(),
+			campaign.BackgroundStatus,
+			campaign.BackgroundThumbnailKey,
+			campaign.UpdatedAt,
+		),
+		StartAt: campaign.StartAt,
+		EndAt:   campaign.EndAt,
+	}
 }
 
 type ContentStatsResponse struct {

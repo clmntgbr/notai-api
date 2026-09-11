@@ -21,7 +21,7 @@ type contentListByCampaignHandler interface {
 	Handle(
 		ctx context.Context,
 		q querycontent.ListContentsByCampaignQuery,
-	) ([]domaincontent.ContentView, int64, error)
+	) (*querycontent.ListContentsByCampaignResult, error)
 }
 
 type contentStatsByClientHandler interface {

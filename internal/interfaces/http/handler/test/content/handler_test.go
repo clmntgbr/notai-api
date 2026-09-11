@@ -11,6 +11,7 @@ import (
 
 	contentcmd "go-api/internal/application/command/content"
 	querycontent "go-api/internal/application/query/content"
+	domaincampaign "go-api/internal/domain/campaign"
 	domaincontent "go-api/internal/domain/content"
 	"go-api/internal/domain/paginate"
 	"go-api/internal/interfaces/http/handler"
@@ -50,18 +51,23 @@ func (m *mockGetContentByIDHandler) Handle(
 type mockListContentsByCampaignHandler struct {
 	called bool
 	query  querycontent.ListContentsByCampaignQuery
-	views  []domaincontent.ContentView
-	total  int64
+	result *querycontent.ListContentsByCampaignResult
 	err    error
 }
 
 func (m *mockListContentsByCampaignHandler) Handle(
 	_ context.Context,
 	q querycontent.ListContentsByCampaignQuery,
-) ([]domaincontent.ContentView, int64, error) {
+) (*querycontent.ListContentsByCampaignResult, error) {
 	m.called = true
 	m.query = q
-	return m.views, m.total, m.err
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &querycontent.ListContentsByCampaignResult{}, nil
 }
 
 type mockContentStatsByClientHandler struct {
@@ -545,8 +551,16 @@ func TestContentHandler_Presign_EmptyFileListError(t *testing.T) {
 
 func TestContentHandler_List_Success(t *testing.T) {
 	list := &mockListContentsByCampaignHandler{
-		views: []domaincontent.ContentView{*sampleContentView()},
-		total: 1,
+		result: &querycontent.ListContentsByCampaignResult{
+			Views: []domaincontent.ContentView{*sampleContentView()},
+			Total: 1,
+			Campaign: &domaincampaign.CampaignView{
+				ID:        testutil.TestCampaignID,
+				ClientID:  testutil.TestClientID,
+				Name:      "Spring Launch",
+				IsDefault: false,
+			},
+		},
 	}
 	h := newContentHandler(nil, nil, list, nil, nil)
 	app := testutil.NewTestApp()
@@ -573,10 +587,49 @@ func TestContentHandler_List_Success(t *testing.T) {
 	if len(members) != 1 {
 		t.Fatalf("members: %#v", body["members"])
 	}
+	member, _ := members[0].(map[string]any)
+	campaign, ok := member["campaign"].(map[string]any)
+	if !ok || campaign["name"] != "Spring Launch" {
+		t.Fatalf("campaign: %#v", member["campaign"])
+	}
+}
+
+func TestContentHandler_List_DefaultCampaign_OmitsCampaign(t *testing.T) {
+	list := &mockListContentsByCampaignHandler{
+		result: &querycontent.ListContentsByCampaignResult{
+			Views: []domaincontent.ContentView{*sampleContentView()},
+			Total: 1,
+			Campaign: &domaincampaign.CampaignView{
+				ID:        testutil.TestCampaignID,
+				ClientID:  testutil.TestClientID,
+				Name:      "Default",
+				IsDefault: true,
+			},
+		},
+	}
+	h := newContentHandler(nil, nil, list, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/contents", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	members, _ := body["members"].([]any)
+	member, _ := members[0].(map[string]any)
+	if _, ok := member["campaign"]; ok {
+		t.Fatalf("expected no campaign for default, got %#v", member["campaign"])
+	}
 }
 
 func TestContentHandler_List_EmptyCampaignID(t *testing.T) {
-	list := &mockListContentsByCampaignHandler{views: []domaincontent.ContentView{}, total: 0}
+	list := &mockListContentsByCampaignHandler{
+		result: &querycontent.ListContentsByCampaignResult{Views: []domaincontent.ContentView{}, Total: 0},
+	}
 	h := newContentHandler(nil, nil, list, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)

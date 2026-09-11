@@ -142,7 +142,7 @@ func (h *ContentHandler) List(c fiber.Ctx) error {
 		listQuery.OrderBy = paginate.OrderByDesc
 	}
 
-	views, total, err := h.listHandler.Handle(c.Context(), querycontent.ListContentsByCampaignQuery{
+	result, err := h.listHandler.Handle(c.Context(), querycontent.ListContentsByCampaignQuery{
 		CampaignID: campaignID,
 		ClientID:   clientID,
 		Query:      listQuery.PaginateQuery,
@@ -155,8 +155,8 @@ func (h *ContentHandler) List(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(paginate.NewPaginateResponse(
-		presenter.NewContentListResponseFromViews(views),
-		int(total),
+		presenter.NewContentListResponseFromViews(result.Views, result.Campaign),
+		int(result.Total),
 		listQuery.PaginateQuery,
 	))
 }

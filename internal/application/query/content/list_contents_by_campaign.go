@@ -17,6 +17,12 @@ type ListContentsByCampaignQuery struct {
 	Query      paginate.PaginateQuery
 }
 
+type ListContentsByCampaignResult struct {
+	Views    []domaincontent.ContentView
+	Total    int64
+	Campaign *domaincampaign.CampaignView
+}
+
 type ListContentsByCampaignHandler struct {
 	contentRepo  domaincontent.ContentReadRepository
 	campaignRepo domaincampaign.CampaignReadRepository
@@ -35,21 +41,25 @@ func NewListContentsByCampaignHandler(
 func (h *ListContentsByCampaignHandler) Handle(
 	ctx context.Context,
 	q ListContentsByCampaignQuery,
-) ([]domaincontent.ContentView, int64, error) {
+) (*ListContentsByCampaignResult, error) {
 	if q.ClientID == uuid.Nil {
-		return nil, 0, errors.New("clientId is required")
+		return nil, errors.New("clientId is required")
 	}
 
 	campaign, err := h.resolveCampaign(ctx, q.CampaignID, q.ClientID)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	views, total, err := h.contentRepo.FindPageByCampaignID(ctx, campaign.ID, q.Query)
 	if err != nil {
-		return nil, 0, errors.New("failed to list contents")
+		return nil, errors.New("failed to list contents")
 	}
-	return views, total, nil
+	return &ListContentsByCampaignResult{
+		Views:    views,
+		Total:    total,
+		Campaign: campaign,
+	}, nil
 }
 
 func (h *ListContentsByCampaignHandler) resolveCampaign(
