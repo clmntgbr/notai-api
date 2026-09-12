@@ -12,3 +12,9 @@ type Detector interface {
 	ExpectedWeight() float64
 	Analyze(ctx context.Context, contentID uuid.UUID, objectKey string) ([]Signal, error)
 }
+
+// RulesetVersionTracker is optionally implemented by detectors that persist
+// a calibration/ruleset version used during Analyze.
+type RulesetVersionTracker interface {
+	TakeRulesetVersion(contentID uuid.UUID) *int
+}

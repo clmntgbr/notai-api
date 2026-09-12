@@ -116,6 +116,9 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 			} else {
 				result.MarkSuccess(signals)
 			}
+			if tracker, ok := d.(domaincontent.RulesetVersionTracker); ok {
+				result.RulesetVersion = tracker.TakeRulesetVersion(content.ID)
+			}
 
 			// Persist immediately, independently of other detectors.
 			return h.resultRepo.Upsert(ctx, result)
@@ -199,13 +202,20 @@ func aggregate(results []analysisresult.Result) domaincontent.Verdict {
 func computeLabel(signals []domaincontent.Signal) (domaincontent.Label, float64) {
 	var aiScore float64
 	for _, s := range signals {
-		if s.Code == "sightengine_genai" || s.Type == "model" {
+		if s.Type == "meta" {
+			continue
+		}
+		switch s.Type {
+		case "model", "heuristic", "metadata":
 			if s.Weight > aiScore {
 				aiScore = s.Weight
 			}
-		}
-		if s.Code == "suspicious_filename" && s.Weight > aiScore {
-			aiScore = s.Weight
+		default:
+			if s.Code == "sightengine_genai" || s.Code == "suspicious_filename" {
+				if s.Weight > aiScore {
+					aiScore = s.Weight
+				}
+			}
 		}
 	}
 

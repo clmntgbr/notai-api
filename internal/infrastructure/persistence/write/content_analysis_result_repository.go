@@ -37,14 +37,15 @@ func (r *contentAnalysisResultRepository) Upsert(ctx context.Context, result *an
 	}
 
 	model := ContentAnalysisResultModel{
-		ID:           result.ID,
-		ContentID:    result.ContentID,
-		DetectorName: result.DetectorName,
-		Status:       string(result.Status),
-		Signals:      dbtype.JSONB(signalsJSON),
-		Error:        errMsg,
-		StartedAt:    result.StartedAt,
-		CompletedAt:  result.CompletedAt,
+		ID:             result.ID,
+		ContentID:      result.ContentID,
+		DetectorName:   result.DetectorName,
+		Status:         string(result.Status),
+		Signals:        dbtype.JSONB(signalsJSON),
+		Error:          errMsg,
+		StartedAt:      result.StartedAt,
+		CompletedAt:    result.CompletedAt,
+		RulesetVersion: result.RulesetVersion,
 	}
 
 	return DBWithContext(ctx, r.db).Clauses(clause.OnConflict{
@@ -55,6 +56,7 @@ func (r *contentAnalysisResultRepository) Upsert(ctx context.Context, result *an
 			"error",
 			"started_at",
 			"completed_at",
+			"ruleset_version",
 		}),
 	}).Create(&model).Error
 }
@@ -82,15 +84,16 @@ func (r *contentAnalysisResultRepository) FindByContentID(
 			errText = *row.Error
 		}
 		out = append(out, analysisresult.Result{
-			ID:           row.ID,
-			ContentID:    row.ContentID,
-			DetectorName: row.DetectorName,
-			Status:       analysisresult.Status(row.Status),
-			Signals:      signals,
-			Error:        errText,
-			StartedAt:    row.StartedAt,
-			CompletedAt:  row.CompletedAt,
-			Weight:       1,
+			ID:             row.ID,
+			ContentID:      row.ContentID,
+			DetectorName:   row.DetectorName,
+			Status:         analysisresult.Status(row.Status),
+			Signals:        signals,
+			Error:          errText,
+			StartedAt:      row.StartedAt,
+			CompletedAt:    row.CompletedAt,
+			Weight:         1,
+			RulesetVersion: row.RulesetVersion,
 		})
 	}
 	return out, nil

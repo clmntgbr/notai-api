@@ -26,15 +26,16 @@ var (
 
 // Result is one detector outcome for a content item.
 type Result struct {
-	ID           uuid.UUID
-	ContentID    uuid.UUID
-	DetectorName string
-	Status       Status
-	Signals      []domaincontent.Signal
-	Error        string
-	StartedAt    time.Time
-	CompletedAt  time.Time
-	Weight       float64
+	ID             uuid.UUID
+	ContentID      uuid.UUID
+	DetectorName   string
+	Status         Status
+	Signals        []domaincontent.Signal
+	Error          string
+	StartedAt      time.Time
+	CompletedAt    time.Time
+	Weight         float64
+	RulesetVersion *int
 }
 
 func New(contentID uuid.UUID, detectorName string, startedAt, completedAt time.Time, weight float64) (*Result, error) {

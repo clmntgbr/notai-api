@@ -50,7 +50,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	outboxRepo := outbox.NewRepository(db)
 	dedupRepo := processed.NewRepository(db)
 
-	detectors := analysis.BuildDetectors(env, minioStorage)
+	detectors := analysis.BuildDetectors(env, minioStorage, db)
 	analyzeHandler := contentcmd.NewAnalyzeContentHandler(
 		contentRepo,
 		resultRepo,
