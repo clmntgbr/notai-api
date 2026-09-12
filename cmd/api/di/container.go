@@ -10,6 +10,7 @@ import (
 	identitycmd "go-api/internal/application/command/identity"
 	"go-api/internal/application/command/mediaupload"
 	usercmd "go-api/internal/application/command/user"
+	queryactivity "go-api/internal/application/query/activity"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
 	querycontent "go-api/internal/application/query/content"
@@ -38,6 +39,7 @@ type Container struct {
 	ClientHandler                *httphandler.ClientHandler
 	CampaignHandler              *httphandler.CampaignHandler
 	ContentHandler               *httphandler.ContentHandler
+	ActivityHandler              *httphandler.ActivityHandler
 	RealtimeHandler              *httphandler.RealtimeHandler
 }
 
@@ -61,6 +63,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	campaignReadRepo := read.NewCampaignReadRepository(db)
 	contentWriteRepo := write.NewContentWriteRepository(db)
 	contentReadRepo := read.NewContentReadRepository(db)
+	activityReadRepo := read.NewActivityEventReadRepository(db)
 	outboxRepo := outbox.NewRepository(db)
 
 	createUserHandler := usercmd.NewCreateUserHandler(
@@ -132,6 +135,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		campaignReadRepo,
 	)
 	getContentStatsByClientHandler := querycontent.NewGetContentStatsByClientHandler(contentReadRepo)
+	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo)
 
 	return &Container{
 		AuthenticateMiddleware: middleware.NewAuthenticateMiddleware(
@@ -180,6 +184,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			getContentStatsByClientHandler,
 			objectStorage,
 		),
+		ActivityHandler: httphandler.NewActivityHandler(listActivityByClientHandler),
 		RealtimeHandler: httphandler.NewRealtimeHandler(centrifugo.NewConnectionInfoCreator(env)),
 	}
 }

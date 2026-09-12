@@ -14,6 +14,7 @@ const (
 	EntityClient   = "client"
 	EntityCampaign = "campaign"
 	EntityContent  = "content"
+	EntityActivity = "activity"
 )
 
 func EventType(entity, action string) string {

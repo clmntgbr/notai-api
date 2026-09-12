@@ -37,6 +37,7 @@ func setupAPIRoutes(app *fiber.App, container *di.Container) {
 	setupClientRoutes(protected, container)
 	setupCampaignRoutes(protected, container)
 	setupContentRoutes(protected, container)
+	setupActivityRoutes(protected, container)
 	setupRealtimeRoutes(protected, container)
 }
 
@@ -75,4 +76,8 @@ func setupContentRoutes(api fiber.Router, container *di.Container) {
 	api.Post("/contents/presign", container.ContentHandler.Presign)
 	api.Get("/contents/:id", container.ContentHandler.GetByID)
 	api.Get("/contents/:id/thumbnail", container.ContentHandler.GetThumbnail)
+}
+
+func setupActivityRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/activity", container.ActivityHandler.List)
 }
