@@ -3,9 +3,12 @@ package presenter
 import (
 	mediacmd "go-api/internal/application/command/media"
 	querymedia "go-api/internal/application/query/media"
+	domaincampaign "go-api/internal/domain/campaign"
 	domainmedia "go-api/internal/domain/media"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type MediaVerdictResponse struct {
@@ -16,16 +19,26 @@ type MediaVerdictResponse struct {
 }
 
 type MediaListItemResponse struct {
-	ID           string                `json:"id"`
-	CampaignID   string                `json:"campaignId"`
-	Filename     string                `json:"filename"`
-	MediaType    string                `json:"mediaType"`
-	Status       string                `json:"status"`
-	Verdict      *MediaVerdictResponse `json:"verdict,omitempty"`
-	ThumbnailURL *string               `json:"thumbnailUrl,omitempty"`
-	CreatedAt    time.Time             `json:"createdAt"`
-	UpdatedAt    time.Time             `json:"updatedAt"`
-	AnalyzedAt   *time.Time            `json:"analyzedAt,omitempty"`
+	ID           string                 `json:"id"`
+	CampaignID   string                 `json:"campaignId"`
+	Filename     string                 `json:"filename"`
+	MediaType    string                 `json:"mediaType"`
+	Status       string                 `json:"status"`
+	Verdict      *MediaVerdictResponse  `json:"verdict,omitempty"`
+	ThumbnailURL *string                `json:"thumbnailUrl,omitempty"`
+	Campaign     *MediaCampaignResponse `json:"campaign,omitempty"`
+	CreatedAt    time.Time              `json:"createdAt"`
+	UpdatedAt    time.Time              `json:"updatedAt"`
+	AnalyzedAt   *time.Time             `json:"analyzedAt,omitempty"`
+}
+
+type MediaCampaignResponse struct {
+	ID                     string     `json:"id"`
+	Name                   string     `json:"name"`
+	BackgroundStatus       string     `json:"backgroundStatus"`
+	BackgroundThumbnailURL string     `json:"backgroundThumbnailUrl,omitempty"`
+	StartAt                *time.Time `json:"startAt,omitempty"`
+	EndAt                  *time.Time `json:"endAt,omitempty"`
 }
 
 type MediaContentChildResponse struct {
@@ -83,7 +96,10 @@ func NewPresignMediaResponse(result *mediacmd.PresignMediaResult) PresignMediaRe
 	}
 }
 
-func NewMediaListResponseFromViews(views []domainmedia.MediaView) []MediaListItemResponse {
+func NewMediaListResponseFromViews(
+	views []domainmedia.MediaView,
+	campaigns map[uuid.UUID]*domaincampaign.CampaignView,
+) []MediaListItemResponse {
 	out := make([]MediaListItemResponse, 0, len(views))
 	for _, v := range views {
 		item := MediaListItemResponse{
@@ -105,12 +121,34 @@ func NewMediaListResponseFromViews(views []domainmedia.MediaView) []MediaListIte
 			}
 		}
 		if v.MediaType == domainmedia.MediaTypeImage {
-			url := "/api/media/" + v.ID.String() + "/thumbnail?v=" + strconv.FormatInt(v.UpdatedAt.UnixNano(), 10)
+			url := "/api/medias/" + v.ID.String() + "/thumbnail?v=" + strconv.FormatInt(v.UpdatedAt.UnixNano(), 10)
 			item.ThumbnailURL = &url
+		}
+		if campaigns != nil {
+			item.Campaign = mediaCampaignResponse(campaigns[v.CampaignID])
 		}
 		out = append(out, item)
 	}
 	return out
+}
+
+func mediaCampaignResponse(campaign *domaincampaign.CampaignView) *MediaCampaignResponse {
+	if campaign == nil || campaign.IsDefault {
+		return nil
+	}
+	return &MediaCampaignResponse{
+		ID:               campaign.ID.String(),
+		Name:             campaign.Name,
+		BackgroundStatus: backgroundStatusOrNone(campaign.BackgroundStatus),
+		BackgroundThumbnailURL: backgroundThumbnailURL(
+			campaign.ID.String(),
+			campaign.BackgroundStatus,
+			campaign.BackgroundThumbnailKey,
+			campaign.UpdatedAt,
+		),
+		StartAt: campaign.StartAt,
+		EndAt:   campaign.EndAt,
+	}
 }
 
 func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailResponse {
@@ -142,7 +180,7 @@ func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailRespons
 			Status:      c.Status,
 		}
 		if c.ThumbnailKey != nil && *c.ThumbnailKey != "" {
-			url := "/api/media/" + v.ID.String() + "/contents/" + c.ID.String() +
+			url := "/api/medias/" + v.ID.String() + "/contents/" + c.ID.String() +
 				"/thumbnail?v=" + strconv.FormatInt(c.UpdatedAt.UnixNano(), 10)
 			child.ThumbnailURL = &url
 		}

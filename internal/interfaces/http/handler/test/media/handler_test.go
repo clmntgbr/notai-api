@@ -6,13 +6,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	mediacmd "go-api/internal/application/command/media"
 	querymedia "go-api/internal/application/query/media"
+	domaincampaign "go-api/internal/domain/campaign"
 	domainmedia "go-api/internal/domain/media"
-	"go-api/internal/domain/paginate"
 	"go-api/internal/interfaces/http/handler"
 	"go-api/internal/interfaces/http/testutil"
 
@@ -37,21 +38,21 @@ func (m *mockPresignMediaHandler) Handle(
 
 type mockListMediaHandler struct {
 	called bool
-	query  querymedia.ListByCampaignQuery
-	result *querymedia.ListByCampaignResult
+	query  querymedia.ListByClientQuery
+	result *querymedia.ListByClientResult
 	err    error
 }
 
 func (m *mockListMediaHandler) Handle(
 	_ context.Context,
-	q querymedia.ListByCampaignQuery,
-) (*querymedia.ListByCampaignResult, error) {
+	q querymedia.ListByClientQuery,
+) (*querymedia.ListByClientResult, error) {
 	m.called = true
 	m.query = q
 	if m.result != nil {
 		return m.result, m.err
 	}
-	return &querymedia.ListByCampaignResult{}, m.err
+	return &querymedia.ListByClientResult{}, m.err
 }
 
 type mockGetMediaByIDHandler struct {
@@ -160,14 +161,15 @@ func TestMediaHandler_Presign_Success(t *testing.T) {
 	h := newMediaHandler(presign, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{
+			"campaignId": testutil.TestCampaignID.String(),
 			"files": []map[string]any{
 				{"filename": "a.png", "contentType": "image/png"},
 			},
@@ -186,13 +188,44 @@ func TestMediaHandler_Presign_Success(t *testing.T) {
 	}
 }
 
+func TestMediaHandler_Presign_DefaultCampaign(t *testing.T) {
+	presign := &mockPresignMediaHandler{
+		result: &mediacmd.PresignMediaResult{
+			CampaignID: testutil.TestCampaignID,
+			Items: []mediacmd.PresignMediaItem{{
+				MediaID:   uuid.MustParse("01960000-0000-7000-8000-0000000000a1"),
+				URL:       "https://minio.example/upload",
+				ObjectKey: "key",
+				Filename:  "a.png",
+				MediaType: domainmedia.MediaTypeImage,
+			}},
+		},
+	}
+	h := newMediaHandler(presign, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/medias/presign", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Presign)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/medias/presign",
+		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !presign.called || presign.cmd.CampaignID != uuid.Nil {
+		t.Fatalf("presign cmd: %+v", presign.cmd)
+	}
+}
+
 func TestMediaHandler_Presign_Unauthorized(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Post("/campaigns/:id/media/presign", h.Presign)
+	app.Post("/medias/presign", h.Presign)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
 	))
 	if err != nil {
@@ -207,13 +240,13 @@ func TestMediaHandler_Presign_MissingClient(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithUserWithoutClient(testutil.TestUserID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
 	))
 	if err != nil {
@@ -229,13 +262,13 @@ func TestMediaHandler_Presign_UnsupportedMediaType(t *testing.T) {
 	h := newMediaHandler(presign, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.gif", "contentType": "image/gif"}}},
 	))
 	if err != nil {
@@ -251,13 +284,13 @@ func TestMediaHandler_Presign_NotFound(t *testing.T) {
 	h := newMediaHandler(presign, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
 	))
 	if err != nil {
@@ -272,14 +305,17 @@ func TestMediaHandler_Presign_InvalidCampaignID(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/not-a-uuid/media/presign",
-		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
+		"/medias/presign",
+		map[string]any{
+			"campaignId": "not-a-uuid",
+			"files":      []map[string]any{{"filename": "a.png", "contentType": "image/png"}},
+		},
 	))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
@@ -293,13 +329,13 @@ func TestMediaHandler_Presign_InvalidBody(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{},
 	))
 	if err != nil {
@@ -315,67 +351,19 @@ func TestMediaHandler_Presign_Internal(t *testing.T) {
 	h := newMediaHandler(presign, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
 	))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
 	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status: got %d", resp.StatusCode)
-	}
-}
-
-func TestMediaHandler_ListByCampaign_Success(t *testing.T) {
-	list := &mockListMediaHandler{
-		result: &querymedia.ListByCampaignResult{
-			Views: []domainmedia.MediaView{sampleMediaView()},
-			Total: 1,
-		},
-	}
-	h := newMediaHandler(nil, list, nil, nil, nil)
-	app := testutil.NewTestApp()
-	app.Get(
-		"/campaigns/:id/media",
-		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
-		h.ListByCampaign,
-	)
-
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media?page=1&limit=10",
-		nil,
-	))
-	if err != nil {
-		t.Fatalf("perform request: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: got %d", resp.StatusCode)
-	}
-	if !list.called || list.query.CampaignID != testutil.TestCampaignID {
-		t.Fatalf("list query: %+v", list.query)
-	}
-	_ = paginate.OrderByDesc
-}
-
-func TestMediaHandler_ListByCampaign_Unauthorized(t *testing.T) {
-	h := newMediaHandler(nil, nil, nil, nil, nil)
-	app := testutil.NewTestApp()
-	app.Get("/campaigns/:id/media", h.ListByCampaign)
-
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media",
-		nil,
-	))
-	if err != nil {
-		t.Fatalf("perform request: %v", err)
-	}
-	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }
@@ -396,13 +384,13 @@ func TestMediaHandler_GetByID_Success(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id",
+		"/medias/:id",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetByID,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String(),
+		"/medias/"+sampleMediaView().ID.String(),
 		nil,
 	))
 	if err != nil {
@@ -418,13 +406,13 @@ func TestMediaHandler_GetByID_NotFound(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id",
+		"/medias/:id",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetByID,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+uuid.New().String(),
+		"/medias/"+uuid.New().String(),
 		nil,
 	))
 	if err != nil {
@@ -443,13 +431,13 @@ func TestMediaHandler_GetThumbnail_Success(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, storage)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/thumbnail",
+		"/medias/:id/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/thumbnail",
+		"/medias/"+sampleMediaView().ID.String()+"/thumbnail",
 		nil,
 	))
 	if err != nil {
@@ -479,9 +467,9 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 	}
 	h := newMediaHandler(nil, nil, nil, stats, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/stats", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -507,9 +495,9 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 func TestMediaHandler_Stats_Unauthorized(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/stats", h.Stats)
+	app.Get("/medias/stats", h.Stats)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/stats", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -521,9 +509,9 @@ func TestMediaHandler_Stats_Unauthorized(t *testing.T) {
 func TestMediaHandler_Stats_MissingClient(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/stats", testutil.WithUserWithoutClient(testutil.TestUserID), h.Stats)
+	app.Get("/medias/stats", testutil.WithUserWithoutClient(testutil.TestUserID), h.Stats)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/stats", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -536,70 +524,9 @@ func TestMediaHandler_Stats_Internal(t *testing.T) {
 	stats := &mockMediaStatsHandler{err: errors.New("boom")}
 	h := newMediaHandler(nil, nil, nil, stats, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/stats", nil))
-	if err != nil {
-		t.Fatalf("perform request: %v", err)
-	}
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status: got %d", resp.StatusCode)
-	}
-}
-
-func TestMediaHandler_ListByCampaign_MissingClient(t *testing.T) {
-	h := newMediaHandler(nil, nil, nil, nil, nil)
-	app := testutil.NewTestApp()
-	app.Get("/campaigns/:id/media", testutil.WithUserWithoutClient(testutil.TestUserID), h.ListByCampaign)
-
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media", nil))
-	if err != nil {
-		t.Fatalf("perform request: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: got %d", resp.StatusCode)
-	}
-}
-
-func TestMediaHandler_ListByCampaign_InvalidCampaignID(t *testing.T) {
-	h := newMediaHandler(nil, nil, nil, nil, nil)
-	app := testutil.NewTestApp()
-	app.Get("/campaigns/:id/media", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.ListByCampaign)
-
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/campaigns/not-a-uuid/media", nil))
-	if err != nil {
-		t.Fatalf("perform request: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: got %d", resp.StatusCode)
-	}
-}
-
-func TestMediaHandler_ListByCampaign_CampaignNotFound(t *testing.T) {
-	list := &mockListMediaHandler{err: errors.New("campaign not found")}
-	h := newMediaHandler(nil, list, nil, nil, nil)
-	app := testutil.NewTestApp()
-	app.Get("/campaigns/:id/media", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.ListByCampaign)
-
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media", nil))
-	if err != nil {
-		t.Fatalf("perform request: %v", err)
-	}
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("status: got %d", resp.StatusCode)
-	}
-}
-
-func TestMediaHandler_ListByCampaign_Internal(t *testing.T) {
-	list := &mockListMediaHandler{err: errors.New("boom")}
-	h := newMediaHandler(nil, list, nil, nil, nil)
-	app := testutil.NewTestApp()
-	app.Get("/campaigns/:id/media", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.ListByCampaign)
-
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -611,9 +538,9 @@ func TestMediaHandler_ListByCampaign_Internal(t *testing.T) {
 func TestMediaHandler_GetByID_Unauthorized(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id", h.GetByID)
+	app.Get("/medias/:id", h.GetByID)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String(), nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -625,9 +552,9 @@ func TestMediaHandler_GetByID_Unauthorized(t *testing.T) {
 func TestMediaHandler_GetByID_MissingClient(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id", testutil.WithUserWithoutClient(testutil.TestUserID), h.GetByID)
+	app.Get("/medias/:id", testutil.WithUserWithoutClient(testutil.TestUserID), h.GetByID)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String(), nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -639,9 +566,9 @@ func TestMediaHandler_GetByID_MissingClient(t *testing.T) {
 func TestMediaHandler_GetByID_InvalidID(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+	app.Get("/medias/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/not-a-uuid", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/not-a-uuid", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -654,9 +581,9 @@ func TestMediaHandler_GetByID_Internal(t *testing.T) {
 	getByID := &mockGetMediaByIDHandler{err: errors.New("boom")}
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
+	app.Get("/medias/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String(), nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -668,9 +595,9 @@ func TestMediaHandler_GetByID_Internal(t *testing.T) {
 func TestMediaHandler_GetThumbnail_Unauthorized(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/thumbnail", h.GetThumbnail)
+	app.Get("/medias/:id/thumbnail", h.GetThumbnail)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String()+"/thumbnail", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -682,9 +609,9 @@ func TestMediaHandler_GetThumbnail_Unauthorized(t *testing.T) {
 func TestMediaHandler_GetThumbnail_MissingClient(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/thumbnail", testutil.WithUserWithoutClient(testutil.TestUserID), h.GetThumbnail)
+	app.Get("/medias/:id/thumbnail", testutil.WithUserWithoutClient(testutil.TestUserID), h.GetThumbnail)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String()+"/thumbnail", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -696,9 +623,9 @@ func TestMediaHandler_GetThumbnail_MissingClient(t *testing.T) {
 func TestMediaHandler_GetThumbnail_InvalidID(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
+	app.Get("/medias/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/not-a-uuid/thumbnail", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/not-a-uuid/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -711,9 +638,9 @@ func TestMediaHandler_GetThumbnail_NotFound(t *testing.T) {
 	getByID := &mockGetMediaByIDHandler{err: errors.New("media not found")}
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
+	app.Get("/medias/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String()+"/thumbnail", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -727,9 +654,9 @@ func TestMediaHandler_GetThumbnail_StorageError(t *testing.T) {
 	storage := &mockMediaStorage{err: errors.New("missing")}
 	h := newMediaHandler(nil, nil, getByID, nil, storage)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
+	app.Get("/medias/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String()+"/thumbnail", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -757,13 +684,13 @@ func TestMediaHandler_GetContentThumbnail_Success(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, storage)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+contentID.String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+contentID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -786,13 +713,13 @@ func TestMediaHandler_GetContentThumbnail_MissingThumbnail(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+contentID.String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+contentID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -804,10 +731,10 @@ func TestMediaHandler_GetContentThumbnail_MissingThumbnail(t *testing.T) {
 func TestMediaHandler_GetContentThumbnail_Unauthorized(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/contents/:contentId/thumbnail", h.GetContentThumbnail)
+	app.Get("/medias/:id/contents/:contentId/thumbnail", h.GetContentThumbnail)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -820,13 +747,13 @@ func TestMediaHandler_GetContentThumbnail_MissingClient(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithUserWithoutClient(testutil.TestUserID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -839,9 +766,9 @@ func TestMediaHandler_GetThumbnail_Internal(t *testing.T) {
 	getByID := &mockGetMediaByIDHandler{err: errors.New("boom")}
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
-	app.Get("/media/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
+	app.Get("/medias/:id/thumbnail", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetThumbnail)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/media/"+sampleMediaView().ID.String()+"/thumbnail", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/"+sampleMediaView().ID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -854,13 +781,13 @@ func TestMediaHandler_GetContentThumbnail_InvalidMediaID(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/not-a-uuid/contents/"+uuid.New().String()+"/thumbnail", nil))
+		"/medias/not-a-uuid/contents/"+uuid.New().String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -873,13 +800,13 @@ func TestMediaHandler_GetContentThumbnail_InvalidContentID(t *testing.T) {
 	h := newMediaHandler(nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/not-a-uuid/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/not-a-uuid/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -893,13 +820,13 @@ func TestMediaHandler_GetContentThumbnail_MediaNotFound(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -913,13 +840,13 @@ func TestMediaHandler_GetContentThumbnail_Internal(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -935,13 +862,13 @@ func TestMediaHandler_GetContentThumbnail_ContentNotFound(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+uuid.New().String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -965,13 +892,13 @@ func TestMediaHandler_GetContentThumbnail_StorageError(t *testing.T) {
 	h := newMediaHandler(nil, nil, getByID, nil, storage)
 	app := testutil.NewTestApp()
 	app.Get(
-		"/media/:id/contents/:contentId/thumbnail",
+		"/medias/:id/contents/:contentId/thumbnail",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.GetContentThumbnail,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/media/"+sampleMediaView().ID.String()+"/contents/"+contentID.String()+"/thumbnail", nil))
+		"/medias/"+sampleMediaView().ID.String()+"/contents/"+contentID.String()+"/thumbnail", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -985,19 +912,209 @@ func TestMediaHandler_Presign_BadRequest(t *testing.T) {
 	h := newMediaHandler(presign, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post(
-		"/campaigns/:id/media/presign",
+		"/medias/presign",
 		testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID),
 		h.Presign,
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodPost,
-		"/campaigns/"+testutil.TestCampaignID.String()+"/media/presign",
+		"/medias/presign",
 		map[string]any{"files": []map[string]any{{"filename": "a.png", "contentType": "image/png"}}},
 	))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
 	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_List_Success(t *testing.T) {
+	view := sampleMediaView()
+	campaign := &domaincampaign.CampaignView{
+		ID:               view.CampaignID,
+		ClientID:         view.ClientID,
+		Name:             "Spring",
+		IsDefault:        false,
+		BackgroundStatus: domaincampaign.BackgroundStatusNone,
+	}
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{
+			Views: []domainmedia.MediaView{view},
+			Total: 1,
+			Campaigns: map[uuid.UUID]*domaincampaign.CampaignView{
+				view.CampaignID: campaign,
+			},
+		},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?page=1&limit=10", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !list.called || list.query.ClientID != testutil.TestClientID || list.query.CampaignID != uuid.Nil {
+		t.Fatalf("list query: %+v", list.query)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	members, ok := body["members"].([]any)
+	if !ok || len(members) != 1 {
+		t.Fatalf("members: %#v", body["members"])
+	}
+	item, ok := members[0].(map[string]any)
+	if !ok {
+		t.Fatalf("item: %#v", members[0])
+	}
+	if item["id"] != view.ID.String() {
+		t.Fatalf("id: %#v", item["id"])
+	}
+	thumb, _ := item["thumbnailUrl"].(string)
+	if !strings.HasPrefix(thumb, "/api/medias/"+view.ID.String()+"/thumbnail") {
+		t.Fatalf("thumbnailUrl: %#v", item["thumbnailUrl"])
+	}
+	camp, ok := item["campaign"].(map[string]any)
+	if !ok || camp["name"] != "Spring" || camp["id"] != view.CampaignID.String() {
+		t.Fatalf("campaign: %#v", item["campaign"])
+	}
+}
+
+func TestMediaHandler_List_DefaultCampaignOmitsCampaign(t *testing.T) {
+	view := sampleMediaView()
+	campaign := &domaincampaign.CampaignView{
+		ID:        view.CampaignID,
+		ClientID:  view.ClientID,
+		Name:      "Default",
+		IsDefault: true,
+	}
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{
+			Views: []domainmedia.MediaView{view},
+			Total: 1,
+			Campaigns: map[uuid.UUID]*domaincampaign.CampaignView{
+				view.CampaignID: campaign,
+			},
+		},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	members, ok := body["members"].([]any)
+	if !ok || len(members) != 1 {
+		t.Fatalf("members: %#v", body["members"])
+	}
+	item, ok := members[0].(map[string]any)
+	if !ok {
+		t.Fatalf("item: %#v", members[0])
+	}
+	if _, exists := item["campaign"]; exists {
+		t.Fatalf("expected campaign omitted, got %#v", item["campaign"])
+	}
+}
+
+func TestMediaHandler_List_WithCampaignFilter(t *testing.T) {
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{Views: []domainmedia.MediaView{}, Total: 0},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias?campaignId="+testutil.TestCampaignID.String(), nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !list.called || list.query.CampaignID != testutil.TestCampaignID {
+		t.Fatalf("list query: %+v", list.query)
+	}
+}
+
+func TestMediaHandler_List_Unauthorized(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_List_MissingClient(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithUserWithoutClient(testutil.TestUserID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_List_InvalidCampaignID(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?campaignId=not-a-uuid", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_List_CampaignNotFound(t *testing.T) {
+	list := &mockListMediaHandler{err: errors.New("campaign not found")}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias?campaignId="+testutil.TestCampaignID.String(), nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_List_Internal(t *testing.T) {
+	list := &mockListMediaHandler{err: errors.New("boom")}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }

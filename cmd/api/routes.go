@@ -68,15 +68,15 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 	api.Post("/campaigns/:id/background/presign", container.CampaignHandler.PresignBackground)
 	api.Delete("/campaigns/:id/background", container.CampaignHandler.ClearBackground)
 	api.Get("/campaigns/:id/thumbnail", container.CampaignHandler.GetThumbnail)
-	api.Post("/campaigns/:id/media/presign", container.MediaHandler.Presign)
-	api.Get("/campaigns/:id/media", container.MediaHandler.ListByCampaign)
 }
 
 func setupMediaRoutes(api fiber.Router, container *di.Container) {
-	api.Get("/media/stats", container.MediaHandler.Stats)
-	api.Get("/media/:id/contents/:contentId/thumbnail", container.MediaHandler.GetContentThumbnail)
-	api.Get("/media/:id", container.MediaHandler.GetByID)
-	api.Get("/media/:id/thumbnail", container.MediaHandler.GetThumbnail)
+	api.Get("/medias", container.MediaHandler.List)
+	api.Post("/medias/presign", container.MediaHandler.Presign)
+	api.Get("/medias/stats", container.MediaHandler.Stats)
+	api.Get("/medias/:id/contents/:contentId/thumbnail", container.MediaHandler.GetContentThumbnail)
+	api.Get("/medias/:id", container.MediaHandler.GetByID)
+	api.Get("/medias/:id/thumbnail", container.MediaHandler.GetThumbnail)
 }
 
 func setupActivityRoutes(api fiber.Router, container *di.Container) {

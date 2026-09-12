@@ -131,7 +131,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	)
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
-	listMediaByCampaignHandler := querymedia.NewListByCampaignHandler(mediaReadRepo, campaignReadRepo)
+	listMediaByClientHandler := querymedia.NewListByClientHandler(mediaReadRepo, campaignReadRepo)
 	getMediaByIDHandler := querymedia.NewGetByIDHandler(mediaReadRepo)
 	getMediaStatsByClientHandler := querymedia.NewGetStatsByClientHandler(mediaReadRepo)
 	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo)
@@ -178,7 +178,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		),
 		MediaHandler: httphandler.NewMediaHandler(
 			presignMediaHandler,
-			listMediaByCampaignHandler,
+			listMediaByClientHandler,
 			getMediaByIDHandler,
 			getMediaStatsByClientHandler,
 			objectStorage,

@@ -20,7 +20,7 @@ import (
 
 type MediaHandler struct {
 	presignHandler mediaPresignHandler
-	listHandler    mediaListByCampaignHandler
+	listHandler    mediaListByClientHandler
 	getByIDHandler mediaGetByIDHandler
 	statsHandler   mediaStatsByClientHandler
 	storage        mediaStorage
@@ -28,7 +28,7 @@ type MediaHandler struct {
 
 func NewMediaHandler(
 	presignHandler mediaPresignHandler,
-	listHandler mediaListByCampaignHandler,
+	listHandler mediaListByClientHandler,
 	getByIDHandler mediaGetByIDHandler,
 	statsHandler mediaStatsByClientHandler,
 	storage mediaStorage,
@@ -52,14 +52,17 @@ func (h *MediaHandler) Presign(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
 	}
 
-	campaignID, err := uuid.Parse(c.Params("id"))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
-	}
-
 	var req dto.PresignMediaRequest
 	if err := validation.BindBody(c, &req); err != nil {
 		return err
+	}
+
+	var campaignID uuid.UUID
+	if req.CampaignID != "" {
+		campaignID, err = uuid.Parse(req.CampaignID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+		}
 	}
 
 	files := make([]mediacmd.PresignFileInput, 0, len(req.Files))
@@ -102,7 +105,7 @@ func (h *MediaHandler) Presign(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(presenter.NewPresignMediaResponse(result))
 }
 
-func (h *MediaHandler) ListByCampaign(c fiber.Ctx) error {
+func (h *MediaHandler) List(c fiber.Ctx) error {
 	if _, err := httpctx.GetUser(c); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
 	}
@@ -112,16 +115,22 @@ func (h *MediaHandler) ListByCampaign(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
 	}
 
-	campaignID, err := uuid.Parse(c.Params("id"))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+	var listQuery struct {
+		paginate.PaginateQuery
+		CampaignID string `query:"campaignId"`
 	}
-
-	var listQuery paginate.PaginateQuery
 	if err := c.Bind().Query(&listQuery); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "Invalid query parameters",
 		})
+	}
+
+	var campaignID uuid.UUID
+	if listQuery.CampaignID != "" {
+		campaignID, err = uuid.Parse(listQuery.CampaignID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+		}
 	}
 
 	sortBy, orderBy := listQuery.SortBy, listQuery.OrderBy
@@ -133,10 +142,10 @@ func (h *MediaHandler) ListByCampaign(c fiber.Ctx) error {
 		listQuery.OrderBy = paginate.OrderByDesc
 	}
 
-	result, err := h.listHandler.Handle(c.Context(), querymedia.ListByCampaignQuery{
+	result, err := h.listHandler.Handle(c.Context(), querymedia.ListByClientQuery{
 		ClientID:   clientID,
 		CampaignID: campaignID,
-		Query:      listQuery,
+		Query:      listQuery.PaginateQuery,
 	})
 	if err != nil {
 		if err.Error() == "campaign not found" {
@@ -146,9 +155,9 @@ func (h *MediaHandler) ListByCampaign(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(paginate.NewPaginateResponse(
-		presenter.NewMediaListResponseFromViews(result.Views),
+		presenter.NewMediaListResponseFromViews(result.Views, result.Campaigns),
 		int(result.Total),
-		listQuery,
+		listQuery.PaginateQuery,
 	))
 }
 

@@ -19,7 +19,7 @@ type MediaWriteRepository interface {
 
 type MediaReadRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*MediaView, error)
-	FindPageByCampaignID(
+	FindPageByClientID(
 		ctx context.Context,
 		clientID, campaignID uuid.UUID,
 		query paginate.PaginateQuery,

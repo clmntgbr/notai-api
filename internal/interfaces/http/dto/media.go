@@ -1,7 +1,8 @@
 package dto
 
 type PresignMediaRequest struct {
-	Files []PresignMediaFileRequest `json:"files" validate:"required,min=1,max=20,dive"`
+	CampaignID string                    `json:"campaignId" validate:"omitempty,uuid"`
+	Files      []PresignMediaFileRequest `json:"files" validate:"required,min=1,max=20,dive"`
 }
 
 type PresignMediaFileRequest struct {

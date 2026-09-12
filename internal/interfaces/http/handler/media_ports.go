@@ -13,8 +13,8 @@ type mediaPresignHandler interface {
 	Handle(ctx context.Context, cmd mediacmd.PresignMediaCommand) (*mediacmd.PresignMediaResult, error)
 }
 
-type mediaListByCampaignHandler interface {
-	Handle(ctx context.Context, q querymedia.ListByCampaignQuery) (*querymedia.ListByCampaignResult, error)
+type mediaListByClientHandler interface {
+	Handle(ctx context.Context, q querymedia.ListByClientQuery) (*querymedia.ListByClientResult, error)
 }
 
 type mediaGetByIDHandler interface {

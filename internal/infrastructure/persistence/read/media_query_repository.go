@@ -57,7 +57,7 @@ func (r *mediaReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 	return toMediaView(row), nil
 }
 
-func (r *mediaReadRepository) FindPageByCampaignID(
+func (r *mediaReadRepository) FindPageByClientID(
 	ctx context.Context,
 	clientID, campaignID uuid.UUID,
 	query paginate.PaginateQuery,
@@ -77,7 +77,10 @@ func (r *mediaReadRepository) FindPageByCampaignID(
 
 	db := r.db.WithContext(ctx).
 		Model(&mediaRow{}).
-		Where("client_id = ? AND campaign_id = ?", clientID, campaignID)
+		Where("client_id = ?", clientID)
+	if campaignID != uuid.Nil {
+		db = db.Where("campaign_id = ?", campaignID)
+	}
 
 	if query.Search != "" {
 		db = db.Where("filename ILIKE ?", "%"+query.Search+"%")
