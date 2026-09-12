@@ -58,7 +58,7 @@ func TestActivityHandler_List_Success(t *testing.T) {
 			Type:       domainactivity.TypeContentAIFlagged,
 			ActorType:  domainactivity.ActorTypeSystem,
 			ActorName:  domainactivity.ActorNameSystem,
-			Message:    "« unboxing.png » signalé comme généré par IA (score 78 %)",
+			Message:    "“unboxing.png” flagged as AI-generated (score 78%)",
 			Payload:    map[string]any{"filename": "unboxing.png"},
 			OccurredAt: time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
 		}},
@@ -87,7 +87,7 @@ func TestActivityHandler_List_Success(t *testing.T) {
 		t.Fatalf("members: %#v", body["members"])
 	}
 	item, ok := members[0].(map[string]any)
-	if !ok || item["type"] != domainactivity.TypeContentAIFlagged || item["actorName"] != "Système" {
+	if !ok || item["type"] != domainactivity.TypeContentAIFlagged || item["actorName"] != "System" {
 		t.Fatalf("item: %#v", members[0])
 	}
 }

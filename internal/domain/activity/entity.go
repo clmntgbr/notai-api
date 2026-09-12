@@ -17,7 +17,7 @@ const (
 	ActorTypeSystem = "system"
 	ActorTypeUser   = "user"
 
-	ActorNameSystem = "Système"
+	ActorNameSystem = "System"
 )
 
 // Event is a denormalized activity-feed projection row.

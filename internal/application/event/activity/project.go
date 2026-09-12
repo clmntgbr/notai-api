@@ -88,21 +88,21 @@ func (p *Projector) OnContentVerdictRendered(ctx context.Context, payload []byte
 	case domaincontent.LabelAIGenerated:
 		activityType = domainactivity.TypeContentAIFlagged
 		message = fmt.Sprintf(
-			"« %s » signalé comme généré par IA (score %d %%)",
+			"“%s” flagged as AI-generated (score %d%%)",
 			filename,
 			scorePct,
 		)
 	case domaincontent.LabelUncertain:
 		activityType = domainactivity.TypeContentManualReview
 		message = fmt.Sprintf(
-			"« %s » placé en revue manuelle (score %d %%)",
+			"“%s” placed under manual review (score %d%%)",
 			filename,
 			scorePct,
 		)
 	case domaincontent.LabelHuman:
 		activityType = domainactivity.TypeContentHumanVerified
 		message = fmt.Sprintf(
-			"« %s » validé comme contenu humain (score %d %%)",
+			"“%s” verified as human content (score %d%%)",
 			filename,
 			scorePct,
 		)
@@ -163,7 +163,7 @@ func (p *Projector) OnContentStatusChanged(ctx context.Context, payload []byte) 
 		Type:      domainactivity.TypeContentFailed,
 		ActorType: domainactivity.ActorTypeSystem,
 		ActorName: domainactivity.ActorNameSystem,
-		Message:   fmt.Sprintf("« %s » a échoué pendant le traitement", filename),
+		Message:   fmt.Sprintf("“%s” failed during processing", filename),
 		Payload: map[string]any{
 			"contentId":  evt.ContentID,
 			"campaignId": evt.CampaignID,
@@ -192,7 +192,7 @@ func (p *Projector) OnCampaignCreated(ctx context.Context, payload []byte) error
 		return messaging.NonRetryable(err)
 	}
 
-	clientName := "le client"
+	clientName := "the client"
 	if view, err := p.clientRepo.FindByID(ctx, clientID); err != nil {
 		return messaging.Retryable(err)
 	} else if view != nil && view.Name != "" {
@@ -200,7 +200,7 @@ func (p *Projector) OnCampaignCreated(ctx context.Context, payload []byte) error
 	}
 
 	message := fmt.Sprintf(
-		"Nouvelle campagne « %s » créée pour %s",
+		"New campaign “%s” created for %s",
 		evt.Name,
 		clientName,
 	)
@@ -240,14 +240,14 @@ func (p *Projector) OnClientMemberAdded(ctx context.Context, payload []byte) err
 		return messaging.NonRetryable(err)
 	}
 
-	memberName := "Un membre"
+	memberName := "A member"
 	if view, err := p.userRepo.FindByID(ctx, userID); err != nil {
 		return messaging.Retryable(err)
 	} else if view != nil {
 		memberName = displayName(view.FirstName, view.LastName, view.Email)
 	}
 
-	message := fmt.Sprintf("%s a rejoint l'équipe", memberName)
+	message := fmt.Sprintf("%s joined the team", memberName)
 
 	return p.insert(ctx, &domainactivity.Event{
 		ID:        eventID,
@@ -319,5 +319,5 @@ func displayName(firstName, lastName, email string) string {
 	if email != "" {
 		return email
 	}
-	return "Un membre"
+	return "A member"
 }
