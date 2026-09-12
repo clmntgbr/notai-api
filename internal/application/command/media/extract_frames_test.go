@@ -129,7 +129,7 @@ type stubExtractor struct {
 	err    error
 }
 
-func (s stubExtractor) Extract(ctx context.Context, videoPath string, intervalMs, maxFrames int) ([]port.ExtractedFrame, error) {
+func (s stubExtractor) Extract(ctx context.Context, videoPath string) ([]port.ExtractedFrame, error) {
 	return s.frames, s.err
 }
 
@@ -148,17 +148,20 @@ func TestExtractFramesHandler_SuccessCreatesContents(t *testing.T) {
 	mediaRepo := &memMediaRepo{byID: map[uuid.UUID]*domainmedia.Media{mediaID: m}}
 	contentRepo := &memContentRepo{}
 	storage := &memStorage{objects: map[string][]byte{m.ObjectKey: []byte("video")}}
-	extractor := stubExtractor{frames: []port.ExtractedFrame{
-		{Index: 0, TimestampMs: 0, JPEGBytes: []byte("jpeg0")},
-		{Index: 1, TimestampMs: 2000, JPEGBytes: []byte("jpeg1")},
-	}}
+	frames := make([]port.ExtractedFrame, 10)
+	for i := range frames {
+		frames[i] = port.ExtractedFrame{
+			Index: i, TimestampMs: int64(i * 1000), JPEGBytes: []byte("jpeg"),
+		}
+	}
+	extractor := stubExtractor{frames: frames}
 
-	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor, 2000, 12)
+	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor)
 	if err := h.Handle(context.Background(), ExtractFramesCommand{MediaID: mediaID}); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
-	if len(contentRepo.items) != 2 {
-		t.Fatalf("expected 2 contents, got %d", len(contentRepo.items))
+	if len(contentRepo.items) != 10 {
+		t.Fatalf("expected 10 contents, got %d", len(contentRepo.items))
 	}
 	if contentRepo.items[0].FrameIndex == nil || *contentRepo.items[0].FrameIndex != 0 {
 		t.Fatalf("frame index: %+v", contentRepo.items[0].FrameIndex)
@@ -182,7 +185,7 @@ func TestExtractFramesHandler_ExtractorFailureMarksMediaFailed(t *testing.T) {
 	storage := &memStorage{objects: map[string][]byte{m.ObjectKey: []byte("video")}}
 	extractor := stubExtractor{err: errors.New("ffmpeg boom")}
 
-	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor, 2000, 12)
+	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor)
 	err := h.Handle(context.Background(), ExtractFramesCommand{MediaID: mediaID})
 	if err == nil {
 		t.Fatal("expected error")

@@ -22,13 +22,11 @@ type ExtractFramesCommand struct {
 }
 
 type ExtractFramesHandler struct {
-	mediaRepo    domainmedia.MediaWriteRepository
-	contentRepo  domaincontent.ContentWriteRepository
-	outbox       port.OutboxRepository
-	storage      port.Storage
-	extractor    port.FrameExtractor
-	intervalMs   int
-	maxFrames    int
+	mediaRepo   domainmedia.MediaWriteRepository
+	contentRepo domaincontent.ContentWriteRepository
+	outbox      port.OutboxRepository
+	storage     port.Storage
+	extractor   port.FrameExtractor
 }
 
 func NewExtractFramesHandler(
@@ -37,22 +35,13 @@ func NewExtractFramesHandler(
 	outbox port.OutboxRepository,
 	storage port.Storage,
 	extractor port.FrameExtractor,
-	intervalMs, maxFrames int,
 ) *ExtractFramesHandler {
-	if intervalMs <= 0 {
-		intervalMs = 2000
-	}
-	if maxFrames <= 0 {
-		maxFrames = 12
-	}
 	return &ExtractFramesHandler{
 		mediaRepo:   mediaRepo,
 		contentRepo: contentRepo,
 		outbox:      outbox,
 		storage:     storage,
 		extractor:   extractor,
-		intervalMs:  intervalMs,
-		maxFrames:   maxFrames,
 	}
 }
 
@@ -105,7 +94,7 @@ func (h *ExtractFramesHandler) Handle(ctx context.Context, cmd ExtractFramesComm
 	}
 	defer cleanup()
 
-	frames, err := h.extractor.Extract(ctx, tmpFile, h.intervalMs, h.maxFrames)
+	frames, err := h.extractor.Extract(ctx, tmpFile)
 	if err != nil {
 		return h.failMedia(ctx, media, err)
 	}

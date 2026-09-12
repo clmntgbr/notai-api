@@ -146,6 +146,123 @@ func (r *mediaReadRepository) FindContentsByMediaID(
 	return out, nil
 }
 
+func (r *mediaReadRepository) CountStatsByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) (*domainmedia.MediaStats, error) {
+	var row struct {
+		PendingUpload int64
+		Uploaded      int64
+		Processing    int64
+		Analyzed      int64
+		Failed        int64
+		Human         int64
+		AIGenerated   int64
+		Uncertain     int64
+	}
+	err := r.db.WithContext(ctx).
+		Table("media").
+		Select(`
+			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE status = 'processing') AS processing,
+			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
+			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'human') AS human,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
+		`).
+		Where("client_id = ?", clientID).
+		Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+
+	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domainmedia.MediaStats{
+		PendingUpload:   row.PendingUpload,
+		Uploaded:        row.Uploaded,
+		Processing:      row.Processing,
+		Analyzed:        row.Analyzed,
+		Failed:          row.Failed,
+		Human:           row.Human,
+		AIGenerated:     row.AIGenerated,
+		Uncertain:       row.Uncertain,
+		MonthlyControls: monthly,
+	}, nil
+}
+
+func (r *mediaReadRepository) countMonthlyControlsByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) ([]domainmedia.MediaMonthlyStats, error) {
+	now := time.Now().UTC()
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
+
+	var rows []struct {
+		Month         string
+		PendingUpload int64
+		Uploaded      int64
+		Processing    int64
+		Analyzed      int64
+		Failed        int64
+		Human         int64
+		AIGenerated   int64
+		Uncertain     int64
+	}
+	err := r.db.WithContext(ctx).
+		Table("media").
+		Select(`
+			to_char(date_trunc('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
+			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE status = 'processing') AS processing,
+			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
+			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'human') AS human,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
+		`).
+		Where("client_id = ? AND created_at >= ?", clientID, start).
+		Group("month").
+		Order("month ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	byMonth := make(map[string]domainmedia.MediaMonthlyStats, len(rows))
+	for _, row := range rows {
+		byMonth[row.Month] = domainmedia.MediaMonthlyStats{
+			Month:         row.Month,
+			PendingUpload: row.PendingUpload,
+			Uploaded:      row.Uploaded,
+			Processing:    row.Processing,
+			Analyzed:      row.Analyzed,
+			Failed:        row.Failed,
+			Human:         row.Human,
+			AIGenerated:   row.AIGenerated,
+			Uncertain:     row.Uncertain,
+		}
+	}
+
+	out := make([]domainmedia.MediaMonthlyStats, 0, 6)
+	for i := 0; i < 6; i++ {
+		monthStart := start.AddDate(0, i, 0)
+		key := monthStart.Format("2006-01")
+		if stats, ok := byMonth[key]; ok {
+			out = append(out, stats)
+			continue
+		}
+		out = append(out, domainmedia.MediaMonthlyStats{Month: key})
+	}
+	return out, nil
+}
+
 func toMediaView(row mediaRow) *domainmedia.MediaView {
 	var verdict *domainmedia.Verdict
 	if len(row.Verdict) > 0 {

@@ -1,8 +1,8 @@
 package presenter
 
 import (
-	querymedia "go-api/internal/application/query/media"
 	mediacmd "go-api/internal/application/command/media"
+	querymedia "go-api/internal/application/query/media"
 	domainmedia "go-api/internal/domain/media"
 	"strconv"
 	"time"
@@ -16,24 +16,25 @@ type MediaVerdictResponse struct {
 }
 
 type MediaListItemResponse struct {
-	ID          string                `json:"id"`
-	CampaignID  string                `json:"campaignId"`
-	Filename    string                `json:"filename"`
-	MediaType   string                `json:"mediaType"`
-	Status      string                `json:"status"`
-	Verdict     *MediaVerdictResponse `json:"verdict,omitempty"`
-	ThumbnailURL *string              `json:"thumbnailUrl,omitempty"`
-	CreatedAt   time.Time             `json:"createdAt"`
-	UpdatedAt   time.Time             `json:"updatedAt"`
-	AnalyzedAt  *time.Time            `json:"analyzedAt,omitempty"`
+	ID           string                `json:"id"`
+	CampaignID   string                `json:"campaignId"`
+	Filename     string                `json:"filename"`
+	MediaType    string                `json:"mediaType"`
+	Status       string                `json:"status"`
+	Verdict      *MediaVerdictResponse `json:"verdict,omitempty"`
+	ThumbnailURL *string               `json:"thumbnailUrl,omitempty"`
+	CreatedAt    time.Time             `json:"createdAt"`
+	UpdatedAt    time.Time             `json:"updatedAt"`
+	AnalyzedAt   *time.Time            `json:"analyzedAt,omitempty"`
 }
 
 type MediaContentChildResponse struct {
-	ID          string     `json:"id"`
-	FrameIndex  *int       `json:"frameIndex,omitempty"`
-	TimestampMs *int64     `json:"timestampMs,omitempty"`
-	Status      string     `json:"status"`
-	Verdict     *struct {
+	ID           string  `json:"id"`
+	FrameIndex   *int    `json:"frameIndex,omitempty"`
+	TimestampMs  *int64  `json:"timestampMs,omitempty"`
+	Status       string  `json:"status"`
+	ThumbnailURL *string `json:"thumbnailUrl,omitempty"`
+	Verdict      *struct {
 		Label      string  `json:"label"`
 		Confidence float64 `json:"confidence"`
 	} `json:"verdict,omitempty"`
@@ -53,7 +54,7 @@ type MediaDetailResponse struct {
 }
 
 type PresignMediaResponse struct {
-	CampaignID string                `json:"campaignId"`
+	CampaignID string                     `json:"campaignId"`
 	Items      []PresignMediaItemResponse `json:"items"`
 }
 
@@ -140,6 +141,11 @@ func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailRespons
 			TimestampMs: c.TimestampMs,
 			Status:      c.Status,
 		}
+		if c.ThumbnailKey != nil && *c.ThumbnailKey != "" {
+			url := "/api/media/" + v.ID.String() + "/contents/" + c.ID.String() +
+				"/thumbnail?v=" + strconv.FormatInt(c.UpdatedAt.UnixNano(), 10)
+			child.ThumbnailURL = &url
+		}
 		if c.Label != nil && *c.Label != "" {
 			conf := 0.0
 			if c.Confidence != nil {
@@ -153,4 +159,59 @@ func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailRespons
 		resp.Contents = append(resp.Contents, child)
 	}
 	return resp
+}
+
+type MediaStatsResponse struct {
+	PendingUpload   int64                          `json:"pendingUpload"`
+	Uploaded        int64                          `json:"uploaded"`
+	Processing      int64                          `json:"processing"`
+	Analyzed        int64                          `json:"analyzed"`
+	Failed          int64                          `json:"failed"`
+	Human           int64                          `json:"human"`
+	AIGenerated     int64                          `json:"aiGenerated"`
+	Uncertain       int64                          `json:"uncertain"`
+	MonthlyControls []MediaMonthlyControlsResponse `json:"monthlyControls"`
+}
+
+type MediaMonthlyControlsResponse struct {
+	Month         string `json:"month"`
+	PendingUpload int64  `json:"pendingUpload"`
+	Uploaded      int64  `json:"uploaded"`
+	Processing    int64  `json:"processing"`
+	Analyzed      int64  `json:"analyzed"`
+	Failed        int64  `json:"failed"`
+	Human         int64  `json:"human"`
+	AIGenerated   int64  `json:"aiGenerated"`
+	Uncertain     int64  `json:"uncertain"`
+}
+
+func NewMediaStatsResponse(stats *domainmedia.MediaStats) MediaStatsResponse {
+	if stats == nil {
+		return MediaStatsResponse{MonthlyControls: make([]MediaMonthlyControlsResponse, 0)}
+	}
+	monthly := make([]MediaMonthlyControlsResponse, 0, len(stats.MonthlyControls))
+	for _, m := range stats.MonthlyControls {
+		monthly = append(monthly, MediaMonthlyControlsResponse{
+			Month:         m.Month,
+			PendingUpload: m.PendingUpload,
+			Uploaded:      m.Uploaded,
+			Processing:    m.Processing,
+			Analyzed:      m.Analyzed,
+			Failed:        m.Failed,
+			Human:         m.Human,
+			AIGenerated:   m.AIGenerated,
+			Uncertain:     m.Uncertain,
+		})
+	}
+	return MediaStatsResponse{
+		PendingUpload:   stats.PendingUpload,
+		Uploaded:        stats.Uploaded,
+		Processing:      stats.Processing,
+		Analyzed:        stats.Analyzed,
+		Failed:          stats.Failed,
+		Human:           stats.Human,
+		AIGenerated:     stats.AIGenerated,
+		Uncertain:       stats.Uncertain,
+		MonthlyControls: monthly,
+	}
 }

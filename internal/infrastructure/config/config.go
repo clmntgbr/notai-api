@@ -54,8 +54,6 @@ type Config struct {
 	FrameExtractionQueue       string
 	FrameExtractionRoutingKey  string
 	FrameExtractionConcurrency int
-	FrameIntervalMS            int
-	FrameMaxCount              int
 }
 
 func Load() *Config {
@@ -104,11 +102,9 @@ func Load() *Config {
 		AnalysisRoutingKey:          getEnvOrDefault("ANALYSIS_ROUTING_KEY", "content.uploaded.v1"),
 		AnalysisConcurrency:         getEnvIntOrDefault("ANALYSIS_CONCURRENCY", 2),
 		AnalysisMaxDetectors:        getEnvIntOrDefault("ANALYSIS_MAX_DETECTORS", 3),
-		FrameExtractionQueue:        getEnvOrDefault("FRAME_EXTRACTION_QUEUE", "frame-extraction"),
-		FrameExtractionRoutingKey:   getEnvOrDefault("FRAME_EXTRACTION_ROUTING_KEY", "media.uploaded.v1"),
-		FrameExtractionConcurrency:  getEnvIntOrDefault("FRAME_EXTRACTION_CONCURRENCY", 1),
-		FrameIntervalMS:             getEnvIntOrDefault("FRAME_INTERVAL_MS", 2000),
-		FrameMaxCount:               getEnvIntOrDefault("FRAME_MAX_COUNT", 12),
+		FrameExtractionQueue:       getEnvOrDefault("FRAME_EXTRACTION_QUEUE", "frame-extraction"),
+		FrameExtractionRoutingKey:  getEnvOrDefault("FRAME_EXTRACTION_ROUTING_KEY", "media.uploaded.v1"),
+		FrameExtractionConcurrency: getEnvIntOrDefault("FRAME_EXTRACTION_CONCURRENCY", 1),
 	}
 }
 

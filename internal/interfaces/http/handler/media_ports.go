@@ -6,6 +6,7 @@ import (
 
 	mediacmd "go-api/internal/application/command/media"
 	querymedia "go-api/internal/application/query/media"
+	domainmedia "go-api/internal/domain/media"
 )
 
 type mediaPresignHandler interface {
@@ -18,6 +19,10 @@ type mediaListByCampaignHandler interface {
 
 type mediaGetByIDHandler interface {
 	Handle(ctx context.Context, q querymedia.GetByIDQuery) (*querymedia.GetByIDResult, error)
+}
+
+type mediaStatsByClientHandler interface {
+	Handle(ctx context.Context, q querymedia.GetStatsByClientQuery) (*domainmedia.MediaStats, error)
 }
 
 type mediaStorage interface {

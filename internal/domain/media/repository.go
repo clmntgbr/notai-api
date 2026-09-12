@@ -25,6 +25,31 @@ type MediaReadRepository interface {
 		query paginate.PaginateQuery,
 	) ([]MediaView, int64, error)
 	FindContentsByMediaID(ctx context.Context, mediaID uuid.UUID) ([]ContentChildView, error)
+	CountStatsByClientID(ctx context.Context, clientID uuid.UUID) (*MediaStats, error)
+}
+
+type MediaStats struct {
+	PendingUpload   int64
+	Uploaded        int64
+	Processing      int64
+	Analyzed        int64
+	Failed          int64
+	Human           int64
+	AIGenerated     int64
+	Uncertain       int64
+	MonthlyControls []MediaMonthlyStats
+}
+
+type MediaMonthlyStats struct {
+	Month         string // YYYY-MM (UTC)
+	PendingUpload int64
+	Uploaded      int64
+	Processing    int64
+	Analyzed      int64
+	Failed        int64
+	Human         int64
+	AIGenerated   int64
+	Uncertain     int64
 }
 
 type MediaView struct {
@@ -45,16 +70,16 @@ type MediaView struct {
 
 // ContentChildView is a nested content row for media detail drill-down.
 type ContentChildView struct {
-	ID          uuid.UUID
-	MediaID     uuid.UUID
-	FrameIndex  *int
-	TimestampMs *int64
-	ObjectKey   string
+	ID           uuid.UUID
+	MediaID      uuid.UUID
+	FrameIndex   *int
+	TimestampMs  *int64
+	ObjectKey    string
 	ThumbnailKey *string
-	SizeBytes   *int64
-	Status      string
-	Label       *string
-	Confidence  *float64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	SizeBytes    *int64
+	Status       string
+	Label        *string
+	Confidence   *float64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }

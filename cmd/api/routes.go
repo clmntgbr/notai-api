@@ -37,7 +37,6 @@ func setupAPIRoutes(app *fiber.App, container *di.Container) {
 	setupClientRoutes(protected, container)
 	setupCampaignRoutes(protected, container)
 	setupMediaRoutes(protected, container)
-	setupContentRoutes(protected, container)
 	setupActivityRoutes(protected, container)
 	setupRealtimeRoutes(protected, container)
 }
@@ -74,15 +73,10 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 }
 
 func setupMediaRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/media/stats", container.MediaHandler.Stats)
+	api.Get("/media/:id/contents/:contentId/thumbnail", container.MediaHandler.GetContentThumbnail)
 	api.Get("/media/:id", container.MediaHandler.GetByID)
 	api.Get("/media/:id/thumbnail", container.MediaHandler.GetThumbnail)
-}
-
-func setupContentRoutes(api fiber.Router, container *di.Container) {
-	api.Get("/contents", container.ContentHandler.List)
-	api.Get("/contents/stats", container.ContentHandler.Stats)
-	api.Get("/contents/:id", container.ContentHandler.GetByID)
-	api.Get("/contents/:id/thumbnail", container.ContentHandler.GetThumbnail)
 }
 
 func setupActivityRoutes(api fiber.Router, container *di.Container) {

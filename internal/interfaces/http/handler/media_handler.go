@@ -22,6 +22,7 @@ type MediaHandler struct {
 	presignHandler mediaPresignHandler
 	listHandler    mediaListByCampaignHandler
 	getByIDHandler mediaGetByIDHandler
+	statsHandler   mediaStatsByClientHandler
 	storage        mediaStorage
 }
 
@@ -29,12 +30,14 @@ func NewMediaHandler(
 	presignHandler mediaPresignHandler,
 	listHandler mediaListByCampaignHandler,
 	getByIDHandler mediaGetByIDHandler,
+	statsHandler mediaStatsByClientHandler,
 	storage mediaStorage,
 ) *MediaHandler {
 	return &MediaHandler{
 		presignHandler: presignHandler,
 		listHandler:    listHandler,
 		getByIDHandler: getByIDHandler,
+		statsHandler:   statsHandler,
 		storage:        storage,
 	}
 }
@@ -149,6 +152,26 @@ func (h *MediaHandler) ListByCampaign(c fiber.Ctx) error {
 	))
 }
 
+func (h *MediaHandler) Stats(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	stats, err := h.statsHandler.Handle(c.Context(), querymedia.GetStatsByClientQuery{
+		ClientID: clientID,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to get media stats"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(presenter.NewMediaStatsResponse(stats))
+}
+
 func (h *MediaHandler) GetByID(c fiber.Ctx) error {
 	if _, err := httpctx.GetUser(c); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
@@ -223,6 +246,72 @@ func (h *MediaHandler) GetThumbnail(c fiber.Ctx) error {
 	c.Set("Content-Type", "image/jpeg")
 	c.Set("Cache-Control", "private, no-cache")
 	c.Set("ETag", strconv.Quote(strconv.FormatInt(result.Media.UpdatedAt.UnixNano(), 10)))
+	c.Set("Content-Length", strconv.Itoa(len(body)))
+
+	return c.Send(body)
+}
+
+func (h *MediaHandler) GetContentThumbnail(c fiber.Ctx) error {
+	if _, err := httpctx.GetUser(c); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := httpctx.GetCurrentClientID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
+	}
+
+	mediaID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	contentID, err := uuid.Parse(c.Params("contentId"))
+	if err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+
+	result, err := h.getByIDHandler.Handle(c.Context(), querymedia.GetByIDQuery{
+		ID:       mediaID,
+		ClientID: clientID,
+	})
+	if err != nil {
+		if err.Error() == "media not found" {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	var thumbKey string
+	var updatedAt int64
+	for _, child := range result.Contents {
+		if child.ID != contentID {
+			continue
+		}
+		if child.ThumbnailKey == nil || *child.ThumbnailKey == "" {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		thumbKey = *child.ThumbnailKey
+		updatedAt = child.UpdatedAt.UnixNano()
+		break
+	}
+	if thumbKey == "" {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+
+	reader, err := h.storage.GetThumbnail(c.Context(), thumbKey)
+	if err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	defer reader.Close()
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	c.Set("Content-Type", "image/jpeg")
+	c.Set("Cache-Control", "private, no-cache")
+	c.Set("ETag", strconv.Quote(strconv.FormatInt(updatedAt, 10)))
 	c.Set("Content-Length", strconv.Itoa(len(body)))
 
 	return c.Send(body)

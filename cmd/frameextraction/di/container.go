@@ -53,8 +53,6 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		outboxRepo,
 		minioStorage,
 		ffmpeg.NewExtractor(),
-		env.FrameIntervalMS,
-		env.FrameMaxCount,
 	)
 
 	reg := registry.NewHandlerRegistry()

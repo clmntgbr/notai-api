@@ -11,7 +11,7 @@ type ExtractedFrame struct {
 	JPEGBytes   []byte
 }
 
-// FrameExtractor samples frames from a local video file path.
+// FrameExtractor samples a fixed number of frames evenly across a video.
 type FrameExtractor interface {
-	Extract(ctx context.Context, videoPath string, intervalMs int, maxFrames int) ([]ExtractedFrame, error)
+	Extract(ctx context.Context, videoPath string) ([]ExtractedFrame, error)
 }

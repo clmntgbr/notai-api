@@ -13,7 +13,6 @@ import (
 	queryactivity "go-api/internal/application/query/activity"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
-	querycontent "go-api/internal/application/query/content"
 	querymedia "go-api/internal/application/query/media"
 	queryuser "go-api/internal/application/query/user"
 	"go-api/internal/infrastructure/centrifugo"
@@ -40,7 +39,6 @@ type Container struct {
 	ClientHandler                *httphandler.ClientHandler
 	CampaignHandler              *httphandler.CampaignHandler
 	MediaHandler                 *httphandler.MediaHandler
-	ContentHandler               *httphandler.ContentHandler
 	ActivityHandler              *httphandler.ActivityHandler
 	RealtimeHandler              *httphandler.RealtimeHandler
 }
@@ -66,7 +64,6 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	mediaWriteRepo := write.NewMediaWriteRepository(db)
 	mediaReadRepo := read.NewMediaReadRepository(db)
 	contentWriteRepo := write.NewContentWriteRepository(db)
-	contentReadRepo := read.NewContentReadRepository(db)
 	activityReadRepo := read.NewActivityEventReadRepository(db)
 	outboxRepo := outbox.NewRepository(db)
 
@@ -134,14 +131,9 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	)
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
-	getContentByIDHandler := querycontent.NewGetContentByIDHandler(contentReadRepo)
-	listContentsByCampaignHandler := querycontent.NewListContentsByCampaignHandler(
-		contentReadRepo,
-		campaignReadRepo,
-	)
-	getContentStatsByClientHandler := querycontent.NewGetContentStatsByClientHandler(contentReadRepo)
 	listMediaByCampaignHandler := querymedia.NewListByCampaignHandler(mediaReadRepo, campaignReadRepo)
 	getMediaByIDHandler := querymedia.NewGetByIDHandler(mediaReadRepo)
+	getMediaStatsByClientHandler := querymedia.NewGetStatsByClientHandler(mediaReadRepo)
 	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo)
 
 	return &Container{
@@ -188,12 +180,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			presignMediaHandler,
 			listMediaByCampaignHandler,
 			getMediaByIDHandler,
-			objectStorage,
-		),
-		ContentHandler: httphandler.NewContentHandler(
-			getContentByIDHandler,
-			listContentsByCampaignHandler,
-			getContentStatsByClientHandler,
+			getMediaStatsByClientHandler,
 			objectStorage,
 		),
 		ActivityHandler: httphandler.NewActivityHandler(listActivityByClientHandler),
