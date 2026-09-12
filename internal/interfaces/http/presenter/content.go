@@ -94,6 +94,7 @@ type ContentStatsResponse struct {
 	PendingUpload int64 `json:"pendingUpload"`
 	Uploaded      int64 `json:"uploaded"`
 	Analyzing     int64 `json:"analyzing"`
+	Analyzed      int64 `json:"analyzed"`
 	Failed        int64 `json:"failed"`
 	Human         int64 `json:"human"`
 	AIGenerated   int64 `json:"aiGenerated"`
@@ -108,6 +109,7 @@ func NewContentStatsResponse(stats *domaincontent.ContentStats) ContentStatsResp
 		PendingUpload: stats.PendingUpload,
 		Uploaded:      stats.Uploaded,
 		Analyzing:     stats.Analyzing,
+		Analyzed:      stats.Analyzed,
 		Failed:        stats.Failed,
 		Human:         stats.Human,
 		AIGenerated:   stats.AIGenerated,

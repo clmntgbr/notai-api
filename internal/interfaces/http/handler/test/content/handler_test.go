@@ -853,6 +853,7 @@ func TestContentHandler_Stats_Success(t *testing.T) {
 			PendingUpload: 5,
 			Uploaded:      6,
 			Analyzing:     7,
+			Analyzed:      8,
 			Failed:        1,
 			Human:         2,
 			AIGenerated:   3,
@@ -877,7 +878,7 @@ func TestContentHandler_Stats_Success(t *testing.T) {
 	if body["failed"] != float64(1) || body["human"] != float64(2) ||
 		body["aiGenerated"] != float64(3) || body["uncertain"] != float64(4) ||
 		body["pendingUpload"] != float64(5) || body["uploaded"] != float64(6) ||
-		body["analyzing"] != float64(7) {
+		body["analyzing"] != float64(7) || body["analyzed"] != float64(8) {
 		t.Fatalf("body: %#v", body)
 	}
 }

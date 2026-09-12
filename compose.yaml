@@ -22,3 +22,14 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+
+  analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: analysis
+    command: ["./analysis"]
+    env_file:
+      - .env
+    restart: unless-stopped

@@ -18,6 +18,7 @@ const (
 	StatusPendingUpload Status = "pending_upload"
 	StatusUploaded      Status = "uploaded"
 	StatusAnalyzing     Status = "analyzing"
+	StatusAnalyzed      Status = "analyzed"
 	StatusFailed        Status = "failed"
 )
 
@@ -102,6 +103,7 @@ type Content struct {
 	ThumbnailKey *string
 	SizeBytes    *int64
 	Label        *Label
+	Confidence   *float64
 
 	Status Status
 
@@ -213,24 +215,48 @@ func (c *Content) StartAnalyzing() error {
 	}
 	now := time.Now().UTC()
 	c.Label = nil
+	c.Confidence = nil
 	c.Status = StatusAnalyzing
 	c.UpdatedAt = now
 	c.recordStatusChanged(now)
 	return nil
 }
 
+// StartAnalysis is the analysis-pipeline alias for StartAnalyzing.
+func (c *Content) StartAnalysis() error {
+	return c.StartAnalyzing()
+}
+
 func (c *Content) CompleteAnalysis(label Label) error {
+	return c.RenderVerdict(Verdict{Label: label, Confidence: 0, Signals: nil})
+}
+
+// RenderVerdict applies an aggregated detector verdict and emits content.verdict_rendered.v1.
+func (c *Content) RenderVerdict(verdict Verdict) error {
 	if c.Status != StatusAnalyzing {
 		return ErrInvalidTransition
 	}
-	if err := ValidateLabel(label); err != nil {
+	if err := ValidateLabel(verdict.Label); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
+	label := verdict.Label
 	c.Label = &label
-	c.Status = StatusUploaded
+	confidence := verdict.Confidence
+	c.Confidence = &confidence
+	c.Status = StatusAnalyzed
 	c.UpdatedAt = now
 	c.recordStatusChanged(now)
+	c.recordEvent(ContentVerdictRendered{
+		ID:         uuid.New().String(),
+		ContentID:  c.ID.String(),
+		CampaignID: c.CampaignID.String(),
+		ClientID:   c.ClientID.String(),
+		Label:      string(label),
+		Confidence: confidence,
+		Signals:    verdict.Signals,
+		Timestamp:  now,
+	})
 	return nil
 }
 

@@ -44,6 +44,7 @@ type CampaignView struct {
 	ContentPendingUploadCount int64
 	ContentUploadedCount      int64
 	ContentAnalyzingCount     int64
+	ContentAnalyzedCount      int64
 	ContentFailedCount        int64
 	ContentHumanCount         int64
 	ContentAIGeneratedCount   int64

@@ -19,6 +19,7 @@ type ContentModel struct {
 	SizeBytes    *int64    `gorm:"column:size_bytes"`
 	Status       string    `gorm:"column:status"`
 	Label        *string   `gorm:"column:label"`
+	Confidence   *float64  `gorm:"column:confidence"`
 	CreatedAt    time.Time `gorm:"column:created_at"`
 	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
@@ -39,6 +40,7 @@ func contentModelFromDomain(c *domaincontent.Content) *ContentModel {
 		SizeBytes:    c.SizeBytes,
 		Status:       string(c.Status),
 		Label:        labelStringPtr(c.Label),
+		Confidence:   c.Confidence,
 		CreatedAt:    c.CreatedAt,
 		UpdatedAt:    c.UpdatedAt,
 	}
@@ -56,6 +58,7 @@ func contentDomainFromModel(m *ContentModel) *domaincontent.Content {
 		SizeBytes:    m.SizeBytes,
 		Status:       domaincontent.Status(m.Status),
 		Label:        labelFromStringPtr(m.Label),
+		Confidence:   m.Confidence,
 		CreatedAt:    m.CreatedAt,
 		UpdatedAt:    m.UpdatedAt,
 	}

@@ -52,6 +52,14 @@ func (h *PublishRealtimeHandler) OnStatusChanged(ctx context.Context, payload []
 	return h.publishToClientMembers(ctx, realtime.ActionStatusChanged, evt.ClientID, evt)
 }
 
+func (h *PublishRealtimeHandler) OnVerdictRendered(ctx context.Context, payload []byte) error {
+	var evt domaincontent.ContentVerdictRendered
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return messaging.NonRetryable(err)
+	}
+	return h.publishToClientMembers(ctx, realtime.ActionUpdated, evt.ClientID, evt)
+}
+
 func (h *PublishRealtimeHandler) publishToClientMembers(
 	ctx context.Context,
 	action string,

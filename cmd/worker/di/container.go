@@ -225,6 +225,16 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"publish_content_status_changed_realtime",
 		publishContentRealtime.OnStatusChanged,
 	))
+	reg.Register(domaincontent.EventTypeContentVerdictRendered, dedup.With(
+		dedupRepo,
+		"content_verdict_rendered",
+		eventcontent.NewContentVerdictRenderedHandler().Handle,
+	))
+	reg.Register(domaincontent.EventTypeContentVerdictRendered, dedup.With(
+		dedupRepo,
+		"publish_content_verdict_rendered_realtime",
+		publishContentRealtime.OnVerdictRendered,
+	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)
 

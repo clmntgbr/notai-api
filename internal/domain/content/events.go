@@ -3,9 +3,10 @@ package content
 import "time"
 
 const (
-	EventTypeContentCreated       = "content.created.v1"
-	EventTypeContentUploaded      = "content.uploaded.v1"
-	EventTypeContentStatusChanged = "content.status_changed.v1"
+	EventTypeContentCreated         = "content.created.v1"
+	EventTypeContentUploaded        = "content.uploaded.v1"
+	EventTypeContentStatusChanged   = "content.status_changed.v1"
+	EventTypeContentVerdictRendered = "content.verdict_rendered.v1"
 )
 
 type ContentCreated struct {
@@ -55,3 +56,19 @@ func (e ContentStatusChanged) EventID() string       { return e.ID }
 func (e ContentStatusChanged) EventType() string     { return EventTypeContentStatusChanged }
 func (e ContentStatusChanged) AggregateID() string   { return e.ContentID }
 func (e ContentStatusChanged) OccurredAt() time.Time { return e.Timestamp }
+
+type ContentVerdictRendered struct {
+	ID         string    `json:"eventId"`
+	ContentID  string    `json:"contentId"`
+	CampaignID string    `json:"campaignId"`
+	ClientID   string    `json:"clientId"`
+	Label      string    `json:"label"`
+	Confidence float64   `json:"confidence"`
+	Signals    []Signal  `json:"signals,omitempty"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
+func (e ContentVerdictRendered) EventID() string       { return e.ID }
+func (e ContentVerdictRendered) EventType() string     { return EventTypeContentVerdictRendered }
+func (e ContentVerdictRendered) AggregateID() string   { return e.ContentID }
+func (e ContentVerdictRendered) OccurredAt() time.Time { return e.Timestamp }

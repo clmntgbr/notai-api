@@ -12,6 +12,7 @@ type CampaignContentCountsResponse struct {
 	PendingUpload int64 `json:"pendingUpload"`
 	Uploaded      int64 `json:"uploaded"`
 	Analyzing     int64 `json:"analyzing"`
+	Analyzed      int64 `json:"analyzed"`
 	Failed        int64 `json:"failed"`
 	Human         int64 `json:"human"`
 	AIGenerated   int64 `json:"aiGenerated"`
@@ -51,6 +52,7 @@ func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) Campaig
 			PendingUpload: view.ContentPendingUploadCount,
 			Uploaded:      view.ContentUploadedCount,
 			Analyzing:     view.ContentAnalyzingCount,
+			Analyzed:      view.ContentAnalyzedCount,
 			Failed:        view.ContentFailedCount,
 			Human:         view.ContentHumanCount,
 			AIGenerated:   view.ContentAIGeneratedCount,

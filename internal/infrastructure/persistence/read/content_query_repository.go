@@ -109,6 +109,7 @@ func (r *contentReadRepository) CountStatsByClientID(
 		PendingUpload int64
 		Uploaded      int64
 		Analyzing     int64
+		Analyzed      int64
 		Failed        int64
 		Human         int64
 		AIGenerated   int64
@@ -120,6 +121,7 @@ func (r *contentReadRepository) CountStatsByClientID(
 			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
 			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
 			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
+			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
 			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
 			COUNT(*) FILTER (WHERE label = 'human') AS human,
 			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
@@ -134,6 +136,7 @@ func (r *contentReadRepository) CountStatsByClientID(
 		PendingUpload: row.PendingUpload,
 		Uploaded:      row.Uploaded,
 		Analyzing:     row.Analyzing,
+		Analyzed:      row.Analyzed,
 		Failed:        row.Failed,
 		Human:         row.Human,
 		AIGenerated:   row.AIGenerated,

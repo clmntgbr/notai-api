@@ -67,3 +67,25 @@ func (h *ContentStatusChangedHandler) Handle(ctx context.Context, payload []byte
 	)
 	return nil
 }
+
+type ContentVerdictRenderedHandler struct{}
+
+func NewContentVerdictRenderedHandler() *ContentVerdictRenderedHandler {
+	return &ContentVerdictRenderedHandler{}
+}
+
+func (h *ContentVerdictRenderedHandler) Handle(ctx context.Context, payload []byte) error {
+	var evt domaincontent.ContentVerdictRendered
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return messaging.NonRetryable(err)
+	}
+	log.Printf(
+		"event handled %s eventId=%s contentId=%s label=%s confidence=%.2f",
+		domaincontent.EventTypeContentVerdictRendered,
+		evt.ID,
+		evt.ContentID,
+		evt.Label,
+		evt.Confidence,
+	)
+	return nil
+}

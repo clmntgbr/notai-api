@@ -32,6 +32,7 @@ type ContentStats struct {
 	PendingUpload int64
 	Uploaded      int64
 	Analyzing     int64
+	Analyzed      int64
 	Failed        int64
 	Human         int64
 	AIGenerated   int64

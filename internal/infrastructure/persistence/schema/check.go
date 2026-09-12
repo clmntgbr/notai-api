@@ -18,6 +18,7 @@ func Models() []any {
 		&write.UserClientModel{},
 		&write.CampaignModel{},
 		&write.ContentModel{},
+		&write.ContentAnalysisResultModel{},
 		&outbox.OutboxEvent{},
 		&processed.ProcessedEvent{},
 	}
