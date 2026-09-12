@@ -46,6 +46,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	}
 
 	contentRepo := write.NewContentWriteRepository(db)
+	mediaRepo := write.NewMediaWriteRepository(db)
 	resultRepo := write.NewContentAnalysisResultRepository(db)
 	outboxRepo := outbox.NewRepository(db)
 	dedupRepo := processed.NewRepository(db)
@@ -53,6 +54,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	detectors := analysis.BuildDetectors(env, minioStorage, db)
 	analyzeHandler := contentcmd.NewAnalyzeContentHandler(
 		contentRepo,
+		mediaRepo,
 		resultRepo,
 		outboxRepo,
 		detectors,

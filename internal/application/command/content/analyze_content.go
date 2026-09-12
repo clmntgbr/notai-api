@@ -9,6 +9,7 @@ import (
 
 	"go-api/internal/domain/analysisresult"
 	domaincontent "go-api/internal/domain/content"
+	domainmedia "go-api/internal/domain/media"
 	"go-api/internal/domain/port"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type AnalyzeContentCommand struct {
 
 type AnalyzeContentHandler struct {
 	contentRepo            domaincontent.ContentWriteRepository
+	mediaRepo              domainmedia.MediaWriteRepository
 	resultRepo             analysisresult.WriteRepository
 	outbox                 port.OutboxRepository
 	detectors              []domaincontent.Detector
@@ -29,6 +31,7 @@ type AnalyzeContentHandler struct {
 
 func NewAnalyzeContentHandler(
 	contentRepo domaincontent.ContentWriteRepository,
+	mediaRepo domainmedia.MediaWriteRepository,
 	resultRepo analysisresult.WriteRepository,
 	outbox port.OutboxRepository,
 	detectors []domaincontent.Detector,
@@ -39,6 +42,7 @@ func NewAnalyzeContentHandler(
 	}
 	return &AnalyzeContentHandler{
 		contentRepo:            contentRepo,
+		mediaRepo:              mediaRepo,
 		resultRepo:             resultRepo,
 		outbox:                 outbox,
 		detectors:              detectors,
@@ -62,9 +66,8 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 		return nil
 	}
 
-	// Already analyzed.
 	if content.Status == domaincontent.StatusAnalyzed {
-		return nil
+		return h.tryFinalizeMedia(ctx, content.MediaID)
 	}
 
 	switch content.Status {
@@ -120,7 +123,6 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 				result.RulesetVersion = tracker.TakeRulesetVersion(content.ID)
 			}
 
-			// Persist immediately, independently of other detectors.
 			return h.resultRepo.Upsert(ctx, result)
 		})
 	}
@@ -141,7 +143,7 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 
 	verdict := aggregate(results)
 
-	return h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+	if err := h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
 		fresh, err := h.contentRepo.GetByID(txCtx, content.ID)
 		if err != nil {
 			return err
@@ -159,7 +161,91 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 			return err
 		}
 		return h.outbox.StoreEvents(txCtx, fresh.PullEvents())
+	}); err != nil {
+		return err
+	}
+
+	return h.tryFinalizeMedia(ctx, content.MediaID)
+}
+
+func (h *AnalyzeContentHandler) tryFinalizeMedia(ctx context.Context, mediaID uuid.UUID) error {
+	if h.mediaRepo == nil || mediaID == uuid.Nil {
+		return nil
+	}
+
+	return h.mediaRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+		media, err := h.mediaRepo.GetByID(txCtx, mediaID)
+		if err != nil {
+			return err
+		}
+		if media == nil {
+			return nil
+		}
+		if media.Status == domainmedia.StatusAnalyzed || media.Status == domainmedia.StatusFailed {
+			return nil
+		}
+
+		siblings, err := h.contentRepo.ListByMediaID(txCtx, mediaID)
+		if err != nil {
+			return err
+		}
+		if len(siblings) == 0 {
+			return nil
+		}
+		for _, c := range siblings {
+			if !c.IsTerminal() {
+				return nil
+			}
+		}
+
+		verdict := AggregateMediaVerdict(siblings)
+		if err := media.RenderGlobalVerdict(verdict); err != nil {
+			return err
+		}
+		if err := h.mediaRepo.Update(txCtx, media); err != nil {
+			return err
+		}
+		return h.outbox.StoreEvents(txCtx, media.PullEvents())
 	})
+}
+
+// AggregateMediaVerdict builds the parent media verdict from child contents.
+func AggregateMediaVerdict(contents []domaincontent.Content) domainmedia.Verdict {
+	total := len(contents)
+	flagged := 0
+	failed := 0
+	uncertain := 0
+	for _, c := range contents {
+		if c.Status == domaincontent.StatusFailed {
+			failed++
+			continue
+		}
+		if c.Label == nil {
+			uncertain++
+			continue
+		}
+		switch *c.Label {
+		case domaincontent.LabelAIGenerated:
+			flagged++
+		case domaincontent.LabelUncertain:
+			uncertain++
+		}
+	}
+
+	label := domaincontent.LabelHuman
+	switch {
+	case flagged > 0:
+		label = domaincontent.LabelAIGenerated
+	case failed > 0 || uncertain > 0:
+		label = domaincontent.LabelUncertain
+	}
+
+	return domainmedia.Verdict{
+		Label:        label,
+		FlaggedCount: flagged,
+		TotalCount:   total,
+		FailedCount:  failed,
+	}
 }
 
 func aggregate(results []analysisresult.Result) domaincontent.Verdict {

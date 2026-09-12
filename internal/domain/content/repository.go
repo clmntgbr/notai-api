@@ -15,6 +15,7 @@ type ContentWriteRepository interface {
 	Update(ctx context.Context, content *Content) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Content, error)
 	GetByObjectKey(ctx context.Context, objectKey string) (*Content, error)
+	ListByMediaID(ctx context.Context, mediaID uuid.UUID) ([]Content, error)
 }
 
 type ContentReadRepository interface {
@@ -40,7 +41,6 @@ type ContentStats struct {
 	MonthlyControls []ContentMonthlyStats
 }
 
-// ContentMonthlyStats is one month of content control counts.
 type ContentMonthlyStats struct {
 	Month         string // YYYY-MM (UTC)
 	PendingUpload int64
@@ -55,15 +55,20 @@ type ContentMonthlyStats struct {
 
 type ContentView struct {
 	ID           uuid.UUID
+	MediaID      uuid.UUID
 	CampaignID   uuid.UUID
 	ClientID     uuid.UUID
 	Filename     string
 	ContentType  string
+	MediaType    string
+	FrameIndex   *int
+	TimestampMs  *int64
 	ObjectKey    string
 	ThumbnailKey *string
 	SizeBytes    *int64
 	Status       Status
 	Label        *Label
+	Confidence   *float64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

@@ -6,14 +6,15 @@ import (
 	authcmd "go-api/internal/application/command/auth"
 	campaigncmd "go-api/internal/application/command/campaign"
 	clientcmd "go-api/internal/application/command/client"
-	contentcmd "go-api/internal/application/command/content"
 	identitycmd "go-api/internal/application/command/identity"
+	mediacmd "go-api/internal/application/command/media"
 	"go-api/internal/application/command/mediaupload"
 	usercmd "go-api/internal/application/command/user"
 	queryactivity "go-api/internal/application/query/activity"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
 	querycontent "go-api/internal/application/query/content"
+	querymedia "go-api/internal/application/query/media"
 	queryuser "go-api/internal/application/query/user"
 	"go-api/internal/infrastructure/centrifugo"
 	infraClerk "go-api/internal/infrastructure/clerk"
@@ -38,6 +39,7 @@ type Container struct {
 	UserHandler                  *httphandler.UserHandler
 	ClientHandler                *httphandler.ClientHandler
 	CampaignHandler              *httphandler.CampaignHandler
+	MediaHandler                 *httphandler.MediaHandler
 	ContentHandler               *httphandler.ContentHandler
 	ActivityHandler              *httphandler.ActivityHandler
 	RealtimeHandler              *httphandler.RealtimeHandler
@@ -61,6 +63,8 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	clientReadRepo := read.NewClientReadRepository(db)
 	campaignWriteRepo := write.NewCampaignWriteRepository(db)
 	campaignReadRepo := read.NewCampaignReadRepository(db)
+	mediaWriteRepo := write.NewMediaWriteRepository(db)
+	mediaReadRepo := read.NewMediaReadRepository(db)
 	contentWriteRepo := write.NewContentWriteRepository(db)
 	contentReadRepo := read.NewContentReadRepository(db)
 	activityReadRepo := read.NewActivityEventReadRepository(db)
@@ -111,13 +115,14 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		objectStorage,
 		thumbnailer,
 	)
-	presignContentsHandler := contentcmd.NewPresignContentsHandler(
+	presignMediaHandler := mediacmd.NewPresignMediaHandler(
 		campaignWriteRepo,
-		contentWriteRepo,
+		mediaWriteRepo,
 		outboxRepo,
 		objectStorage,
 	)
-	processContentUploadHandler := contentcmd.NewProcessUploadHandler(
+	processMediaUploadHandler := mediacmd.NewProcessUploadHandler(
+		mediaWriteRepo,
 		contentWriteRepo,
 		outboxRepo,
 		objectStorage,
@@ -125,7 +130,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	)
 	mediaObjectCreatedDispatcher := mediaupload.NewObjectCreatedDispatcher(
 		processBackgroundUploadHandler,
-		processContentUploadHandler,
+		processMediaUploadHandler,
 	)
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
@@ -135,6 +140,8 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		campaignReadRepo,
 	)
 	getContentStatsByClientHandler := querycontent.NewGetContentStatsByClientHandler(contentReadRepo)
+	listMediaByCampaignHandler := querymedia.NewListByCampaignHandler(mediaReadRepo, campaignReadRepo)
+	getMediaByIDHandler := querymedia.NewGetByIDHandler(mediaReadRepo)
 	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo)
 
 	return &Container{
@@ -177,8 +184,13 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			clearBackgroundHandler,
 			objectStorage,
 		),
+		MediaHandler: httphandler.NewMediaHandler(
+			presignMediaHandler,
+			listMediaByCampaignHandler,
+			getMediaByIDHandler,
+			objectStorage,
+		),
 		ContentHandler: httphandler.NewContentHandler(
-			presignContentsHandler,
 			getContentByIDHandler,
 			listContentsByCampaignHandler,
 			getContentStatsByClientHandler,

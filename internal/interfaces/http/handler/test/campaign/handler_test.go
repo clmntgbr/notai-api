@@ -384,12 +384,12 @@ func TestCampaignHandler_List_Success(t *testing.T) {
 		t.Fatalf("members: %#v", body["members"])
 	}
 	member, _ := members[0].(map[string]any)
-	counts, ok := member["contentCounts"].(map[string]any)
+	counts, ok := member["mediaCounts"].(map[string]any)
 	if !ok {
-		t.Fatalf("contentCounts: %#v", member["contentCounts"])
+		t.Fatalf("mediaCounts: %#v", member["mediaCounts"])
 	}
 	if counts["failed"] != float64(1) || counts["human"] != float64(2) {
-		t.Fatalf("contentCounts: %#v", counts)
+		t.Fatalf("mediaCounts: %#v", counts)
 	}
 }
 
@@ -421,15 +421,15 @@ func TestCampaignHandler_GetByID_Success(t *testing.T) {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 	body := testutil.DecodeJSONMap(t, resp)
-	counts, ok := body["contentCounts"].(map[string]any)
+	counts, ok := body["mediaCounts"].(map[string]any)
 	if !ok {
-		t.Fatalf("contentCounts: %#v", body["contentCounts"])
+		t.Fatalf("mediaCounts: %#v", body["mediaCounts"])
 	}
 	if counts["failed"] != float64(1) || counts["human"] != float64(2) ||
 		counts["aiGenerated"] != float64(3) || counts["uncertain"] != float64(4) ||
 		counts["pendingUpload"] != float64(5) || counts["uploaded"] != float64(6) ||
 		counts["analyzing"] != float64(7) || counts["analyzed"] != float64(8) {
-		t.Fatalf("contentCounts: %#v", counts)
+		t.Fatalf("mediaCounts: %#v", counts)
 	}
 }
 

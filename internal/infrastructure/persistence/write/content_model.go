@@ -10,10 +10,9 @@ import (
 
 type ContentModel struct {
 	ID           uuid.UUID `gorm:"column:id;primaryKey"`
-	CampaignID   uuid.UUID `gorm:"column:campaign_id"`
-	ClientID     uuid.UUID `gorm:"column:client_id"`
-	Filename     string    `gorm:"column:filename"`
-	ContentType  string    `gorm:"column:content_type"`
+	MediaID      uuid.UUID `gorm:"column:media_id"`
+	FrameIndex   *int      `gorm:"column:frame_index"`
+	TimestampMs  *int64    `gorm:"column:timestamp_ms"`
 	ObjectKey    string    `gorm:"column:object_key"`
 	ThumbnailKey *string   `gorm:"column:thumbnail_key"`
 	SizeBytes    *int64    `gorm:"column:size_bytes"`
@@ -31,10 +30,9 @@ func (ContentModel) TableName() string {
 func contentModelFromDomain(c *domaincontent.Content) *ContentModel {
 	return &ContentModel{
 		ID:           c.ID,
-		CampaignID:   c.CampaignID,
-		ClientID:     c.ClientID,
-		Filename:     c.Filename,
-		ContentType:  c.ContentType,
+		MediaID:      c.MediaID,
+		FrameIndex:   c.FrameIndex,
+		TimestampMs:  c.TimestampMs,
 		ObjectKey:    c.ObjectKey,
 		ThumbnailKey: c.ThumbnailKey,
 		SizeBytes:    c.SizeBytes,
@@ -46,13 +44,18 @@ func contentModelFromDomain(c *domaincontent.Content) *ContentModel {
 	}
 }
 
-func contentDomainFromModel(m *ContentModel) *domaincontent.Content {
+type contentWithMediaRow struct {
+	ContentModel
+	CampaignID  uuid.UUID `gorm:"column:campaign_id"`
+	ClientID    uuid.UUID `gorm:"column:client_id"`
+}
+
+func contentDomainFromModel(m *ContentModel, campaignID, clientID uuid.UUID) *domaincontent.Content {
 	return &domaincontent.Content{
 		ID:           m.ID,
-		CampaignID:   m.CampaignID,
-		ClientID:     m.ClientID,
-		Filename:     m.Filename,
-		ContentType:  m.ContentType,
+		MediaID:      m.MediaID,
+		FrameIndex:   m.FrameIndex,
+		TimestampMs:  m.TimestampMs,
 		ObjectKey:    m.ObjectKey,
 		ThumbnailKey: m.ThumbnailKey,
 		SizeBytes:    m.SizeBytes,
@@ -61,6 +64,8 @@ func contentDomainFromModel(m *ContentModel) *domaincontent.Content {
 		Confidence:   m.Confidence,
 		CreatedAt:    m.CreatedAt,
 		UpdatedAt:    m.UpdatedAt,
+		CampaignID:   campaignID,
+		ClientID:     clientID,
 	}
 }
 

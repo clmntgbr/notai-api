@@ -14,6 +14,7 @@ const (
 	EntityClient   = "client"
 	EntityCampaign = "campaign"
 	EntityContent  = "content"
+	EntityMedia    = "media"
 	EntityActivity = "activity"
 )
 

@@ -14,20 +14,23 @@ import (
 
 type contentRow struct {
 	ID           uuid.UUID
+	MediaID      uuid.UUID
 	CampaignID   uuid.UUID
 	ClientID     uuid.UUID
 	Filename     string
 	ContentType  string
+	MediaType    string
+	FrameIndex   *int
+	TimestampMs  *int64
 	ObjectKey    string
 	ThumbnailKey *string
 	SizeBytes    *int64
 	Status       string
 	Label        *string
+	Confidence   *float64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
-
-func (contentRow) TableName() string { return "contents" }
 
 type contentReadRepository struct {
 	db *gorm.DB
@@ -37,14 +40,34 @@ func NewContentReadRepository(db *gorm.DB) domaincontent.ContentReadRepository {
 	return &contentReadRepository{db: db}
 }
 
-const contentSelectCols = "id, campaign_id, client_id, filename, content_type, object_key, " +
-	"thumbnail_key, size_bytes, status, label, created_at, updated_at"
+const contentSelectCols = `
+	contents.id,
+	contents.media_id,
+	media.campaign_id,
+	media.client_id,
+	media.filename,
+	media.content_type,
+	media.media_type,
+	contents.frame_index,
+	contents.timestamp_ms,
+	contents.object_key,
+	contents.thumbnail_key,
+	contents.size_bytes,
+	contents.status,
+	contents.label,
+	contents.confidence,
+	contents.created_at,
+	contents.updated_at
+`
 
 func (r *contentReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*domaincontent.ContentView, error) {
 	var row contentRow
 	err := r.db.WithContext(ctx).
+		Table("contents").
 		Select(contentSelectCols).
-		First(&row, "id = ?", id).Error
+		Joins("JOIN media ON media.id = contents.media_id").
+		Where("contents.id = ?", id).
+		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -62,26 +85,27 @@ func (r *contentReadRepository) FindPageByClientID(
 ) ([]domaincontent.ContentView, int64, error) {
 	switch query.SortBy {
 	case "", "created_at":
-		query.SortBy = "created_at"
+		query.SortBy = "contents.created_at"
 	case "updated_at":
-		query.SortBy = "updated_at"
+		query.SortBy = "contents.updated_at"
 	case "filename":
-		query.SortBy = "filename"
+		query.SortBy = "media.filename"
 	case "status":
-		query.SortBy = "status"
+		query.SortBy = "contents.status"
 	default:
-		query.SortBy = "created_at"
+		query.SortBy = "contents.created_at"
 	}
 
 	db := r.db.WithContext(ctx).
-		Model(&contentRow{}).
-		Where("client_id = ?", clientID)
+		Table("contents").
+		Joins("JOIN media ON media.id = contents.media_id").
+		Where("media.client_id = ?", clientID)
 	if campaignID != uuid.Nil {
-		db = db.Where("campaign_id = ?", campaignID)
+		db = db.Where("media.campaign_id = ?", campaignID)
 	}
 
 	if query.Search != "" {
-		db = db.Where("filename ILIKE ?", "%"+query.Search+"%")
+		db = db.Where("media.filename ILIKE ?", "%"+query.Search+"%")
 	}
 
 	db, total, err := Paginate(db, query)
@@ -117,17 +141,18 @@ func (r *contentReadRepository) CountStatsByClientID(
 	}
 	err := r.db.WithContext(ctx).
 		Table("contents").
+		Joins("JOIN media ON media.id = contents.media_id").
 		Select(`
-			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
-			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
-			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
-			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
-			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-			COUNT(*) FILTER (WHERE label = 'human') AS human,
-			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
-			COUNT(*) FILTER (WHERE label = 'uncertain') AS uncertain
+			COUNT(*) FILTER (WHERE contents.status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE contents.status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE contents.status = 'analyzing') AS analyzing,
+			COUNT(*) FILTER (WHERE contents.status = 'analyzed') AS analyzed,
+			COUNT(*) FILTER (WHERE contents.status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE contents.label = 'human') AS human,
+			COUNT(*) FILTER (WHERE contents.label = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE contents.label = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ?", clientID).
+		Where("media.client_id = ?", clientID).
 		Scan(&row).Error
 	if err != nil {
 		return nil, err
@@ -156,7 +181,6 @@ func (r *contentReadRepository) countMonthlyControlsByClientID(
 	clientID uuid.UUID,
 ) ([]domaincontent.ContentMonthlyStats, error) {
 	now := time.Now().UTC()
-	// Inclusive window: current month + 5 previous = 6 months.
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
 
 	var rows []struct {
@@ -172,18 +196,19 @@ func (r *contentReadRepository) countMonthlyControlsByClientID(
 	}
 	err := r.db.WithContext(ctx).
 		Table("contents").
+		Joins("JOIN media ON media.id = contents.media_id").
 		Select(`
-			to_char(date_trunc('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
-			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
-			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
-			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
-			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
-			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-			COUNT(*) FILTER (WHERE label = 'human') AS human,
-			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
-			COUNT(*) FILTER (WHERE label = 'uncertain') AS uncertain
+			to_char(date_trunc('month', contents.created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
+			COUNT(*) FILTER (WHERE contents.status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE contents.status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE contents.status = 'analyzing') AS analyzing,
+			COUNT(*) FILTER (WHERE contents.status = 'analyzed') AS analyzed,
+			COUNT(*) FILTER (WHERE contents.status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE contents.label = 'human') AS human,
+			COUNT(*) FILTER (WHERE contents.label = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE contents.label = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ? AND created_at >= ?", clientID, start).
+		Where("media.client_id = ? AND contents.created_at >= ?", clientID, start).
 		Group("month").
 		Order("month ASC").
 		Scan(&rows).Error
@@ -227,15 +252,20 @@ func toContentView(row contentRow) *domaincontent.ContentView {
 	}
 	return &domaincontent.ContentView{
 		ID:           row.ID,
+		MediaID:      row.MediaID,
 		CampaignID:   row.CampaignID,
 		ClientID:     row.ClientID,
 		Filename:     row.Filename,
 		ContentType:  row.ContentType,
+		MediaType:    row.MediaType,
+		FrameIndex:   row.FrameIndex,
+		TimestampMs:  row.TimestampMs,
 		ObjectKey:    row.ObjectKey,
 		ThumbnailKey: row.ThumbnailKey,
 		SizeBytes:    row.SizeBytes,
 		Status:       domaincontent.Status(row.Status),
 		Label:        label,
+		Confidence:   row.Confidence,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
 	}

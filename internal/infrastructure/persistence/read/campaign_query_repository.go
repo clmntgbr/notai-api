@@ -191,17 +191,17 @@ func (r *campaignReadRepository) attachContentCounts(
 
 	var rows []campaignContentCountRow
 	err := r.db.WithContext(ctx).
-		Table("contents").
+		Table("media").
 		Select(`
 			campaign_id,
 			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
 			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
-			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
+			COUNT(*) FILTER (WHERE status = 'processing') AS analyzing,
 			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
 			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-			COUNT(*) FILTER (WHERE label = 'human') AS human,
-			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
-			COUNT(*) FILTER (WHERE label = 'uncertain') AS uncertain
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'human') AS human,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
 		Where("campaign_id IN ?", ids).
 		Group("campaign_id").

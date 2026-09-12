@@ -1,4 +1,4 @@
-package content
+package media
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"time"
 
 	domaincampaign "go-api/internal/domain/campaign"
-	domaincontent "go-api/internal/domain/content"
 	"go-api/internal/domain/event"
+	domainmedia "go-api/internal/domain/media"
 	"go-api/internal/domain/port"
 
 	"github.com/google/uuid"
@@ -22,60 +22,61 @@ type PresignFileInput struct {
 	ContentType string
 }
 
-type PresignContentsCommand struct {
+type PresignMediaCommand struct {
 	CampaignID uuid.UUID
 	ClientID   uuid.UUID
 	Files      []PresignFileInput
 }
 
-type PresignContentItem struct {
-	ContentID uuid.UUID
+type PresignMediaItem struct {
+	MediaID   uuid.UUID
 	URL       string
 	ObjectKey string
 	Filename  string
+	MediaType domainmedia.MediaType
 }
 
-type PresignContentsResult struct {
+type PresignMediaResult struct {
 	CampaignID uuid.UUID
-	Items      []PresignContentItem
+	Items      []PresignMediaItem
 }
 
-type PresignContentsHandler struct {
+type PresignMediaHandler struct {
 	campaignRepo domaincampaign.CampaignWriteRepository
-	contentRepo  domaincontent.ContentWriteRepository
+	mediaRepo    domainmedia.MediaWriteRepository
 	outbox       port.OutboxRepository
 	storage      port.Storage
 }
 
-func NewPresignContentsHandler(
+func NewPresignMediaHandler(
 	campaignRepo domaincampaign.CampaignWriteRepository,
-	contentRepo domaincontent.ContentWriteRepository,
+	mediaRepo domainmedia.MediaWriteRepository,
 	outbox port.OutboxRepository,
 	storage port.Storage,
-) *PresignContentsHandler {
-	return &PresignContentsHandler{
+) *PresignMediaHandler {
+	return &PresignMediaHandler{
 		campaignRepo: campaignRepo,
-		contentRepo:  contentRepo,
+		mediaRepo:    mediaRepo,
 		outbox:       outbox,
 		storage:      storage,
 	}
 }
 
-func (h *PresignContentsHandler) Handle(
+func (h *PresignMediaHandler) Handle(
 	ctx context.Context,
-	cmd PresignContentsCommand,
-) (*PresignContentsResult, error) {
+	cmd PresignMediaCommand,
+) (*PresignMediaResult, error) {
 	if len(cmd.Files) == 0 {
-		return nil, domaincontent.ErrEmptyFileList
+		return nil, domainmedia.ErrEmptyFileList
 	}
-	if len(cmd.Files) > domaincontent.MaxPresignBatch {
-		return nil, domaincontent.ErrTooManyFiles
+	if len(cmd.Files) > domainmedia.MaxPresignBatch {
+		return nil, domainmedia.ErrTooManyFiles
 	}
 
 	normalized := make([]PresignFileInput, 0, len(cmd.Files))
 	for _, file := range cmd.Files {
 		filename := filepath.Base(strings.TrimSpace(file.Filename))
-		if err := domaincontent.ValidateContentFilename(filename); err != nil {
+		if err := domainmedia.ValidateFilename(filename); err != nil {
 			return nil, err
 		}
 		normalized = append(normalized, PresignFileInput{
@@ -84,9 +85,9 @@ func (h *PresignContentsHandler) Handle(
 		})
 	}
 
-	created := make([]*domaincontent.Content, 0, len(normalized))
+	created := make([]*domainmedia.Media, 0, len(normalized))
 
-	err := h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+	err := h.mediaRepo.WithTransaction(ctx, func(txCtx context.Context) error {
 		campaign, err := h.resolveCampaign(txCtx, cmd.CampaignID, cmd.ClientID)
 		if err != nil {
 			return err
@@ -94,7 +95,7 @@ func (h *PresignContentsHandler) Handle(
 
 		var events []event.DomainEvent
 		for _, file := range normalized {
-			item, err := domaincontent.NewPendingUpload(
+			item, err := domainmedia.NewPendingUpload(
 				campaign.ID,
 				cmd.ClientID,
 				file.Filename,
@@ -103,8 +104,8 @@ func (h *PresignContentsHandler) Handle(
 			if err != nil {
 				return err
 			}
-			if err := h.contentRepo.Save(txCtx, item); err != nil {
-				return errors.New("failed to create content")
+			if err := h.mediaRepo.Save(txCtx, item); err != nil {
+				return errors.New("failed to create media")
 			}
 			created = append(created, item)
 			events = append(events, item.PullEvents()...)
@@ -112,34 +113,35 @@ func (h *PresignContentsHandler) Handle(
 		return h.outbox.StoreEvents(txCtx, events)
 	})
 	if err != nil {
-		if errors.Is(err, domaincontent.ErrUnsupportedContentType) ||
-			errors.Is(err, domaincontent.ErrInvalidFilename) {
+		if errors.Is(err, domainmedia.ErrUnsupportedContentType) ||
+			errors.Is(err, domainmedia.ErrInvalidFilename) {
 			return nil, err
 		}
 		return nil, err
 	}
 
-	items := make([]PresignContentItem, 0, len(created))
+	items := make([]PresignMediaItem, 0, len(created))
 	for _, item := range created {
 		url, err := h.storage.PresignedPutURL(ctx, item.ObjectKey, presignExpiry)
 		if err != nil {
 			return nil, errors.New("failed to generate upload url")
 		}
-		items = append(items, PresignContentItem{
-			ContentID: item.ID,
+		items = append(items, PresignMediaItem{
+			MediaID:   item.ID,
 			URL:       url,
 			ObjectKey: item.ObjectKey,
 			Filename:  item.Filename,
+			MediaType: item.MediaType,
 		})
 	}
 
-	return &PresignContentsResult{
+	return &PresignMediaResult{
 		CampaignID: created[0].CampaignID,
 		Items:      items,
 	}, nil
 }
 
-func (h *PresignContentsHandler) resolveCampaign(
+func (h *PresignMediaHandler) resolveCampaign(
 	ctx context.Context,
 	campaignID, clientID uuid.UUID,
 ) (*domaincampaign.Campaign, error) {

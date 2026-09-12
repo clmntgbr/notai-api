@@ -28,7 +28,7 @@ type CampaignDetailResponse struct {
 	BackgroundThumbnailURL string                        `json:"backgroundThumbnailUrl,omitempty"`
 	StartAt                *time.Time                    `json:"startAt,omitempty"`
 	EndAt                  *time.Time                    `json:"endAt,omitempty"`
-	ContentCounts          CampaignContentCountsResponse `json:"contentCounts"`
+	MediaCounts            CampaignContentCountsResponse `json:"mediaCounts"`
 	CreatedAt              time.Time                     `json:"createdAt"`
 	UpdatedAt              time.Time                     `json:"updatedAt"`
 }
@@ -48,7 +48,7 @@ func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) Campaig
 		),
 		StartAt: view.StartAt,
 		EndAt:   view.EndAt,
-		ContentCounts: CampaignContentCountsResponse{
+		MediaCounts: CampaignContentCountsResponse{
 			PendingUpload: view.ContentPendingUploadCount,
 			Uploaded:      view.ContentUploadedCount,
 			Analyzing:     view.ContentAnalyzingCount,
@@ -76,11 +76,11 @@ func NewCampaignDetailResponseFromEntity(campaign domaincampaign.Campaign) Campa
 			campaign.BackgroundThumbnailKey,
 			campaign.UpdatedAt,
 		),
-		StartAt:       campaign.StartAt,
-		EndAt:         campaign.EndAt,
-		ContentCounts: CampaignContentCountsResponse{},
-		CreatedAt:     campaign.CreatedAt,
-		UpdatedAt:     campaign.UpdatedAt,
+		StartAt:     campaign.StartAt,
+		EndAt:       campaign.EndAt,
+		MediaCounts: CampaignContentCountsResponse{},
+		CreatedAt:   campaign.CreatedAt,
+		UpdatedAt:   campaign.UpdatedAt,
 	}
 }
 

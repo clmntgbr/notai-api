@@ -36,6 +36,7 @@ func setupAPIRoutes(app *fiber.App, container *di.Container) {
 	setupUserRoutes(protected, container)
 	setupClientRoutes(protected, container)
 	setupCampaignRoutes(protected, container)
+	setupMediaRoutes(protected, container)
 	setupContentRoutes(protected, container)
 	setupActivityRoutes(protected, container)
 	setupRealtimeRoutes(protected, container)
@@ -68,12 +69,18 @@ func setupCampaignRoutes(api fiber.Router, container *di.Container) {
 	api.Post("/campaigns/:id/background/presign", container.CampaignHandler.PresignBackground)
 	api.Delete("/campaigns/:id/background", container.CampaignHandler.ClearBackground)
 	api.Get("/campaigns/:id/thumbnail", container.CampaignHandler.GetThumbnail)
+	api.Post("/campaigns/:id/media/presign", container.MediaHandler.Presign)
+	api.Get("/campaigns/:id/media", container.MediaHandler.ListByCampaign)
+}
+
+func setupMediaRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/media/:id", container.MediaHandler.GetByID)
+	api.Get("/media/:id/thumbnail", container.MediaHandler.GetThumbnail)
 }
 
 func setupContentRoutes(api fiber.Router, container *di.Container) {
 	api.Get("/contents", container.ContentHandler.List)
 	api.Get("/contents/stats", container.ContentHandler.Stats)
-	api.Post("/contents/presign", container.ContentHandler.Presign)
 	api.Get("/contents/:id", container.ContentHandler.GetByID)
 	api.Get("/contents/:id/thumbnail", container.ContentHandler.GetThumbnail)
 }

@@ -51,6 +51,11 @@ type Config struct {
 	AnalysisRoutingKey     string
 	AnalysisConcurrency    int
 	AnalysisMaxDetectors   int
+	FrameExtractionQueue       string
+	FrameExtractionRoutingKey  string
+	FrameExtractionConcurrency int
+	FrameIntervalMS            int
+	FrameMaxCount              int
 }
 
 func Load() *Config {
@@ -74,7 +79,7 @@ func Load() *Config {
 		RabbitMQURL:                 getEnv("RABBITMQ_URL"),
 		RabbitMQExchange:            getEnvOrDefault("RABBITMQ_EXCHANGE", "domain.events"),
 		RabbitMQQueue:               getEnvOrDefault("RABBITMQ_QUEUE", "domain.events"),
-		RabbitMQRoutingKey:          getEnvOrDefault("RABBITMQ_ROUTING_KEY", "user.#,client.#,campaign.#,content.#"),
+		RabbitMQRoutingKey:          getEnvOrDefault("RABBITMQ_ROUTING_KEY", "user.#,client.#,campaign.#,content.#,media.#"),
 		RabbitMQRetryTTLMS:          getEnvIntOrDefault("RABBITMQ_RETRY_TTL_MS", 30000),
 		WorkerMaxRetries:            getEnvIntOrDefault("WORKER_MAX_RETRIES", 3),
 		OutboxPollInterval:          getEnvDuration("OUTBOX_POLL_INTERVAL", 2*time.Second),
@@ -92,13 +97,18 @@ func Load() *Config {
 		StorageThumbnailBucket:      getEnvOrDefault("STORAGE_THUMBNAIL_BUCKET", "thumbnails"),
 		StorageUsePathStyle:         getEnvBool("STORAGE_USE_PATH_STYLE"),
 		MinIOWebhookSecret:          getEnv("MINIO_WEBHOOK_SECRET"),
-		SightengineAPIURL:        getEnvOrDefault("SIGHTENGINE_API_URL", "https://api.sightengine.com/1.0/check.json"),
-		SightengineAPIUser:       os.Getenv("SIGHTENGINE_API_USER"),
-		SightengineAPISecret:     os.Getenv("SIGHTENGINE_API_SECRET"),
-		AnalysisQueue:            getEnvOrDefault("ANALYSIS_QUEUE", "analysis"),
-		AnalysisRoutingKey:       getEnvOrDefault("ANALYSIS_ROUTING_KEY", "content.uploaded.v1"),
-		AnalysisConcurrency:      getEnvIntOrDefault("ANALYSIS_CONCURRENCY", 2),
-		AnalysisMaxDetectors:     getEnvIntOrDefault("ANALYSIS_MAX_DETECTORS", 3),
+		SightengineAPIURL:           getEnvOrDefault("SIGHTENGINE_API_URL", "https://api.sightengine.com/1.0/check.json"),
+		SightengineAPIUser:          os.Getenv("SIGHTENGINE_API_USER"),
+		SightengineAPISecret:        os.Getenv("SIGHTENGINE_API_SECRET"),
+		AnalysisQueue:               getEnvOrDefault("ANALYSIS_QUEUE", "analysis"),
+		AnalysisRoutingKey:          getEnvOrDefault("ANALYSIS_ROUTING_KEY", "content.uploaded.v1"),
+		AnalysisConcurrency:         getEnvIntOrDefault("ANALYSIS_CONCURRENCY", 2),
+		AnalysisMaxDetectors:        getEnvIntOrDefault("ANALYSIS_MAX_DETECTORS", 3),
+		FrameExtractionQueue:        getEnvOrDefault("FRAME_EXTRACTION_QUEUE", "frame-extraction"),
+		FrameExtractionRoutingKey:   getEnvOrDefault("FRAME_EXTRACTION_ROUTING_KEY", "media.uploaded.v1"),
+		FrameExtractionConcurrency:  getEnvIntOrDefault("FRAME_EXTRACTION_CONCURRENCY", 1),
+		FrameIntervalMS:             getEnvIntOrDefault("FRAME_INTERVAL_MS", 2000),
+		FrameMaxCount:               getEnvIntOrDefault("FRAME_MAX_COUNT", 12),
 	}
 }
 

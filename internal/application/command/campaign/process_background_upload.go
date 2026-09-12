@@ -48,7 +48,7 @@ func (h *ProcessBackgroundUploadHandler) Handle(
 	if objectKey == "" || domaincampaign.IsThumbnailObjectKey(objectKey) {
 		return nil
 	}
-	if strings.Contains(objectKey, "/contents/") {
+	if strings.Contains(objectKey, "/contents/") || strings.Contains(objectKey, "/media/") {
 		return nil
 	}
 

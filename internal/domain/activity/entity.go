@@ -11,6 +11,10 @@ const (
 	TypeContentManualReview  = "content.manual_review"
 	TypeContentHumanVerified = "content.human_verified"
 	TypeContentFailed        = "content.failed"
+	TypeMediaAIFlagged       = "media.ai_flagged"
+	TypeMediaManualReview    = "media.manual_review"
+	TypeMediaHumanVerified   = "media.human_verified"
+	TypeMediaFailed          = "media.failed"
 	TypeCampaignCreated      = "campaign.created"
 	TypeClientMemberAdded    = "client.member_added"
 

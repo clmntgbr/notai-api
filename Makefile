@@ -8,7 +8,7 @@ dev:
 	$(COMPOSE_DEV) up -d
 
 restart:
-	$(COMPOSE_DEV) restart api worker analysis
+	$(COMPOSE_DEV) restart api worker analysis frameextraction
 
 build:
 	$(COMPOSE_DEV) up -d --build
@@ -17,7 +17,7 @@ dev-down:
 	$(COMPOSE_DEV) down
 
 dev-logs:
-	$(COMPOSE_DEV) logs -f api worker analysis
+	$(COMPOSE_DEV) logs -f api worker analysis frameextraction
 
 api-logs:
 	$(COMPOSE_DEV) logs -f api
@@ -26,7 +26,7 @@ worker-logs:
 	$(COMPOSE_DEV) logs -f worker
 
 dev-restart:
-	$(COMPOSE_DEV) restart api worker analysis
+	$(COMPOSE_DEV) restart api worker analysis frameextraction
 
 lint:
 	$(COMPOSE_DEV) exec api golangci-lint run --fix

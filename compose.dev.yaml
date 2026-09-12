@@ -98,6 +98,34 @@ services:
       - api
     restart: unless-stopped
 
+  frameextraction:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: frameextraction
+    command: ["go", "run", "./cmd/frameextraction"]
+    volumes:
+      - .:/app
+      - go-modules:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - frameextraction-tmp:/tmp
+    env_file:
+      - .env
+    environment:
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_INTERNAL_ENDPOINT: http://minio:9000
+    depends_on:
+      database:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - api
+    restart: unless-stopped
+
   database:
     container_name: datastore
     image: postgres:${POSTGRES_VERSION:-16}-alpine
@@ -222,6 +250,7 @@ volumes:
   database_data:
   minio_data:
   analysis-tmp:
+  frameextraction-tmp:
 
 networks:
   api:

@@ -5,21 +5,21 @@ import (
 	"strings"
 
 	campaigncmd "go-api/internal/application/command/campaign"
-	contentcmd "go-api/internal/application/command/content"
-	domaincontent "go-api/internal/domain/content"
+	mediacmd "go-api/internal/application/command/media"
+	domainmedia "go-api/internal/domain/media"
 )
 
 // ObjectCreatedDispatcher routes MinIO object-created events to the right processor.
 type ObjectCreatedDispatcher struct {
 	background *campaigncmd.ProcessBackgroundUploadHandler
-	content    *contentcmd.ProcessUploadHandler
+	media      *mediacmd.ProcessUploadHandler
 }
 
 func NewObjectCreatedDispatcher(
 	background *campaigncmd.ProcessBackgroundUploadHandler,
-	content *contentcmd.ProcessUploadHandler,
+	media *mediacmd.ProcessUploadHandler,
 ) *ObjectCreatedDispatcher {
-	return &ObjectCreatedDispatcher{background: background, content: content}
+	return &ObjectCreatedDispatcher{background: background, media: media}
 }
 
 func (d *ObjectCreatedDispatcher) Handle(
@@ -31,8 +31,11 @@ func (d *ObjectCreatedDispatcher) Handle(
 	if key == "" {
 		return nil
 	}
-	if domaincontent.IsContentObjectKey(key) {
-		return d.content.Handle(ctx, contentcmd.ProcessUploadCommand{
+	if domainmedia.IsThumbnailObjectKey(key) || domainmedia.IsFrameObjectKey(key) {
+		return nil
+	}
+	if domainmedia.IsMediaObjectKey(key) {
+		return d.media.Handle(ctx, mediacmd.ProcessUploadCommand{
 			ObjectKey:   key,
 			ContentType: contentType,
 			Size:        size,

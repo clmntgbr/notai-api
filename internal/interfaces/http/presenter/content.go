@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	contentcmd "go-api/internal/application/command/content"
 	domaincampaign "go-api/internal/domain/campaign"
 	domaincontent "go-api/internal/domain/content"
 
@@ -14,10 +13,13 @@ import (
 
 type ContentDetailResponse struct {
 	ID           string                   `json:"id"`
+	MediaID      string                   `json:"mediaId"`
 	CampaignID   string                   `json:"campaignId"`
 	ClientID     string                   `json:"clientId"`
 	Filename     string                   `json:"filename"`
 	ContentType  string                   `json:"contentType"`
+	FrameIndex   *int                     `json:"frameIndex,omitempty"`
+	TimestampMs  *int64                   `json:"timestampMs,omitempty"`
 	Status       string                   `json:"status"`
 	Label        string                   `json:"label,omitempty"`
 	SizeBytes    *int64                   `json:"sizeBytes,omitempty"`
@@ -43,10 +45,13 @@ func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDet
 	}
 	return ContentDetailResponse{
 		ID:           view.ID.String(),
+		MediaID:      view.MediaID.String(),
 		CampaignID:   view.CampaignID.String(),
 		ClientID:     view.ClientID.String(),
 		Filename:     view.Filename,
 		ContentType:  view.ContentType,
+		FrameIndex:   view.FrameIndex,
+		TimestampMs:  view.TimestampMs,
 		Status:       string(view.Status),
 		Label:        label,
 		SizeBytes:    view.SizeBytes,
@@ -145,34 +150,6 @@ func NewContentStatsResponse(stats *domaincontent.ContentStats) ContentStatsResp
 		Uncertain:       stats.Uncertain,
 		MonthlyControls: monthly,
 	}
-}
-
-func NewPresignContentsResponse(result *contentcmd.PresignContentsResult) PresignContentsResponse {
-	items := make([]PresignContentItemResponse, 0, len(result.Items))
-	for _, item := range result.Items {
-		items = append(items, PresignContentItemResponse{
-			ContentID: item.ContentID.String(),
-			URL:       item.URL,
-			ObjectKey: item.ObjectKey,
-			Filename:  item.Filename,
-		})
-	}
-	return PresignContentsResponse{
-		CampaignID: result.CampaignID.String(),
-		Items:      items,
-	}
-}
-
-type PresignContentsResponse struct {
-	CampaignID string                       `json:"campaignId"`
-	Items      []PresignContentItemResponse `json:"items"`
-}
-
-type PresignContentItemResponse struct {
-	ContentID string `json:"contentId"`
-	URL       string `json:"url"`
-	ObjectKey string `json:"objectKey"`
-	Filename  string `json:"filename"`
 }
 
 func contentThumbnailURL(view domaincontent.ContentView) string {

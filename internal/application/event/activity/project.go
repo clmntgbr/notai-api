@@ -13,6 +13,7 @@ import (
 	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
 	domaincontent "go-api/internal/domain/content"
+	domainmedia "go-api/internal/domain/media"
 	"go-api/internal/domain/port"
 	domainuser "go-api/internal/domain/user"
 
@@ -22,7 +23,7 @@ import (
 // Projector writes denormalized activity-feed rows from selected domain events.
 type Projector struct {
 	activityRepo      domainactivity.WriteRepository
-	contentRepo       domaincontent.ContentReadRepository
+	mediaRepo         domainmedia.MediaReadRepository
 	userRepo          domainuser.UserReadRepository
 	clientRepo        domainclient.ClientReadRepository
 	realtimePublisher *realtime.Publisher
@@ -30,14 +31,14 @@ type Projector struct {
 
 func NewProjector(
 	activityRepo domainactivity.WriteRepository,
-	contentRepo domaincontent.ContentReadRepository,
+	mediaRepo domainmedia.MediaReadRepository,
 	userRepo domainuser.UserReadRepository,
 	clientRepo domainclient.ClientReadRepository,
 	realtimePublisher port.RealtimePublisher,
 ) *Projector {
 	return &Projector{
 		activityRepo:      activityRepo,
-		contentRepo:       contentRepo,
+		mediaRepo:         mediaRepo,
 		userRepo:          userRepo,
 		clientRepo:        clientRepo,
 		realtimePublisher: realtime.NewPublisher(realtimePublisher),
@@ -57,7 +58,19 @@ type realtimePayload struct {
 }
 
 func (p *Projector) OnContentVerdictRendered(ctx context.Context, payload []byte) error {
-	var evt domaincontent.ContentVerdictRendered
+	// Media-level activity is preferred; per-content verdicts are not projected.
+	_ = payload
+	return nil
+}
+
+func (p *Projector) OnContentStatusChanged(ctx context.Context, payload []byte) error {
+	// Media-level activity is preferred; per-content failures are not projected.
+	_ = payload
+	return nil
+}
+
+func (p *Projector) OnMediaVerdictRendered(ctx context.Context, payload []byte) error {
+	var evt domainmedia.MediaVerdictRendered
 	if err := json.Unmarshal(payload, &evt); err != nil {
 		return messaging.NonRetryable(err)
 	}
@@ -70,42 +83,39 @@ func (p *Projector) OnContentVerdictRendered(ctx context.Context, payload []byte
 	if err != nil {
 		return messaging.NonRetryable(err)
 	}
-	contentID, err := uuid.Parse(evt.ContentID)
+	mediaID, err := uuid.Parse(evt.MediaID)
 	if err != nil {
 		return messaging.NonRetryable(err)
 	}
 
-	filename := evt.ContentID
-	if view, err := p.contentRepo.FindByID(ctx, contentID); err != nil {
+	filename := evt.MediaID
+	if view, err := p.mediaRepo.FindByID(ctx, mediaID); err != nil {
 		return messaging.Retryable(err)
 	} else if view != nil && view.Filename != "" {
 		filename = view.Filename
 	}
 
-	scorePct := int(evt.Confidence * 100)
 	var activityType, message string
 	switch domaincontent.Label(evt.Label) {
 	case domaincontent.LabelAIGenerated:
-		activityType = domainactivity.TypeContentAIFlagged
+		activityType = domainactivity.TypeMediaAIFlagged
 		message = fmt.Sprintf(
-			"“%s” flagged as AI-generated (score %d%%)",
+			"“%s” flagged as AI-generated (%d/%d frames)",
 			filename,
-			scorePct,
+			evt.FlaggedCount,
+			evt.TotalCount,
 		)
 	case domaincontent.LabelUncertain:
-		activityType = domainactivity.TypeContentManualReview
+		activityType = domainactivity.TypeMediaManualReview
 		message = fmt.Sprintf(
-			"“%s” placed under manual review (score %d%%)",
+			"“%s” placed under manual review (%d/%d units)",
 			filename,
-			scorePct,
+			evt.FlaggedCount,
+			evt.TotalCount,
 		)
 	case domaincontent.LabelHuman:
-		activityType = domainactivity.TypeContentHumanVerified
-		message = fmt.Sprintf(
-			"“%s” verified as human content (score %d%%)",
-			filename,
-			scorePct,
-		)
+		activityType = domainactivity.TypeMediaHumanVerified
+		message = fmt.Sprintf("“%s” verified as human content", filename)
 	default:
 		return nil
 	}
@@ -118,22 +128,24 @@ func (p *Projector) OnContentVerdictRendered(ctx context.Context, payload []byte
 		ActorName: domainactivity.ActorNameSystem,
 		Message:   message,
 		Payload: map[string]any{
-			"contentId":  evt.ContentID,
-			"campaignId": evt.CampaignID,
-			"filename":   filename,
-			"label":      evt.Label,
-			"confidence": evt.Confidence,
+			"mediaId":      evt.MediaID,
+			"campaignId":   evt.CampaignID,
+			"filename":     filename,
+			"label":        evt.Label,
+			"flaggedCount": evt.FlaggedCount,
+			"totalCount":   evt.TotalCount,
+			"failedCount":  evt.FailedCount,
 		},
 		OccurredAt: evt.Timestamp,
 	})
 }
 
-func (p *Projector) OnContentStatusChanged(ctx context.Context, payload []byte) error {
-	var evt domaincontent.ContentStatusChanged
+func (p *Projector) OnMediaStatusChanged(ctx context.Context, payload []byte) error {
+	var evt domainmedia.MediaStatusChanged
 	if err := json.Unmarshal(payload, &evt); err != nil {
 		return messaging.NonRetryable(err)
 	}
-	if domaincontent.Status(evt.Status) != domaincontent.StatusFailed {
+	if domainmedia.Status(evt.Status) != domainmedia.StatusFailed {
 		return nil
 	}
 
@@ -145,13 +157,13 @@ func (p *Projector) OnContentStatusChanged(ctx context.Context, payload []byte) 
 	if err != nil {
 		return messaging.NonRetryable(err)
 	}
-	contentID, err := uuid.Parse(evt.ContentID)
+	mediaID, err := uuid.Parse(evt.MediaID)
 	if err != nil {
 		return messaging.NonRetryable(err)
 	}
 
-	filename := evt.ContentID
-	if view, err := p.contentRepo.FindByID(ctx, contentID); err != nil {
+	filename := evt.MediaID
+	if view, err := p.mediaRepo.FindByID(ctx, mediaID); err != nil {
 		return messaging.Retryable(err)
 	} else if view != nil && view.Filename != "" {
 		filename = view.Filename
@@ -160,12 +172,12 @@ func (p *Projector) OnContentStatusChanged(ctx context.Context, payload []byte) 
 	return p.insert(ctx, &domainactivity.Event{
 		ID:        eventID,
 		ClientID:  clientID,
-		Type:      domainactivity.TypeContentFailed,
+		Type:      domainactivity.TypeMediaFailed,
 		ActorType: domainactivity.ActorTypeSystem,
 		ActorName: domainactivity.ActorNameSystem,
 		Message:   fmt.Sprintf("“%s” failed during processing", filename),
 		Payload: map[string]any{
-			"contentId":  evt.ContentID,
+			"mediaId":    evt.MediaID,
 			"campaignId": evt.CampaignID,
 			"filename":   filename,
 			"status":     evt.Status,

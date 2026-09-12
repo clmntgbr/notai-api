@@ -43,7 +43,7 @@ type CampaignView struct {
 
 	ContentPendingUploadCount int64
 	ContentUploadedCount      int64
-	ContentAnalyzingCount     int64
+	ContentAnalyzingCount     int64 // maps to media status "processing"
 	ContentAnalyzedCount      int64
 	ContentFailedCount        int64
 	ContentHumanCount         int64

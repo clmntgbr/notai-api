@@ -64,6 +64,20 @@ func newS3Client(cfg *config.Config, endpoint string) (*s3.Client, error) {
 	}), nil
 }
 
+func (s *MinIOStorage) Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		Body:          r,
+		ContentLength: aws.Int64(size),
+		ContentType:   aws.String(contentType),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upload object: %w", err)
+	}
+	return nil
+}
+
 func (s *MinIOStorage) PutThumbnail(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.thumbnailBucket),

@@ -10,15 +10,14 @@ const (
 )
 
 type ContentCreated struct {
-	ID          string    `json:"eventId"`
-	ContentID   string    `json:"contentId"`
-	CampaignID  string    `json:"campaignId"`
-	ClientID    string    `json:"clientId"`
-	Filename    string    `json:"filename"`
-	ContentType string    `json:"contentType"`
-	ObjectKey   string    `json:"objectKey"`
-	Status      string    `json:"status"`
-	Timestamp   time.Time `json:"timestamp"`
+	ID         string    `json:"eventId"`
+	ContentID  string    `json:"contentId"`
+	MediaID    string    `json:"mediaId"`
+	CampaignID string    `json:"campaignId"`
+	ClientID   string    `json:"clientId"`
+	ObjectKey  string    `json:"objectKey"`
+	Status     string    `json:"status"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 func (e ContentCreated) EventID() string       { return e.ID }
@@ -29,6 +28,7 @@ func (e ContentCreated) OccurredAt() time.Time { return e.Timestamp }
 type ContentUploaded struct {
 	ID           string    `json:"eventId"`
 	ContentID    string    `json:"contentId"`
+	MediaID      string    `json:"mediaId"`
 	CampaignID   string    `json:"campaignId"`
 	ClientID     string    `json:"clientId"`
 	ObjectKey    string    `json:"objectKey"`
@@ -45,6 +45,7 @@ func (e ContentUploaded) OccurredAt() time.Time { return e.Timestamp }
 type ContentStatusChanged struct {
 	ID         string    `json:"eventId"`
 	ContentID  string    `json:"contentId"`
+	MediaID    string    `json:"mediaId"`
 	CampaignID string    `json:"campaignId"`
 	ClientID   string    `json:"clientId"`
 	Status     string    `json:"status"`
@@ -60,6 +61,7 @@ func (e ContentStatusChanged) OccurredAt() time.Time { return e.Timestamp }
 type ContentVerdictRendered struct {
 	ID         string    `json:"eventId"`
 	ContentID  string    `json:"contentId"`
+	MediaID    string    `json:"mediaId"`
 	CampaignID string    `json:"campaignId"`
 	ClientID   string    `json:"clientId"`
 	Label      string    `json:"label"`

@@ -8,11 +8,13 @@ import (
 	eventclient "go-api/internal/application/event/client"
 	eventcontent "go-api/internal/application/event/content"
 	"go-api/internal/application/event/dedup"
+	eventmedia "go-api/internal/application/event/media"
 	eventuser "go-api/internal/application/event/user"
 	"go-api/internal/application/registry"
 	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
 	domaincontent "go-api/internal/domain/content"
+	domainmedia "go-api/internal/domain/media"
 	domainuser "go-api/internal/domain/user"
 	"go-api/internal/infrastructure/centrifugo"
 	"go-api/internal/infrastructure/config"
@@ -54,11 +56,11 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	realtimePublisher := centrifugo.NewPublisher(env)
 	clientReadRepo := read.NewClientReadRepository(db)
 	userReadRepo := read.NewUserReadRepository(db)
-	contentReadRepo := read.NewContentReadRepository(db)
+	mediaReadRepo := read.NewMediaReadRepository(db)
 	activityWriteRepo := write.NewActivityEventWriteRepository(db)
 	activityProjector := eventactivity.NewProjector(
 		activityWriteRepo,
-		contentReadRepo,
+		mediaReadRepo,
 		userReadRepo,
 		clientReadRepo,
 		realtimePublisher,
@@ -67,6 +69,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	publishClientRealtime := eventclient.NewPublishRealtimeHandler(realtimePublisher)
 	publishCampaignRealtime := eventcampaign.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
 	publishContentRealtime := eventcontent.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
+	publishMediaRealtime := eventmedia.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
 	reg := registry.NewHandlerRegistry()
 
 	reg.Register(domainuser.EventTypeUserCreated, dedup.With(
@@ -247,11 +250,6 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"publish_content_status_changed_realtime",
 		publishContentRealtime.OnStatusChanged,
 	))
-	reg.Register(domaincontent.EventTypeContentStatusChanged, dedup.With(
-		dedupRepo,
-		"project_activity_on_content_status_changed",
-		activityProjector.OnContentStatusChanged,
-	))
 	reg.Register(domaincontent.EventTypeContentVerdictRendered, dedup.With(
 		dedupRepo,
 		"content_verdict_rendered",
@@ -262,10 +260,36 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"publish_content_verdict_rendered_realtime",
 		publishContentRealtime.OnVerdictRendered,
 	))
-	reg.Register(domaincontent.EventTypeContentVerdictRendered, dedup.With(
+
+	reg.Register(domainmedia.EventTypeMediaUploadRequested, dedup.With(
 		dedupRepo,
-		"project_activity_on_content_verdict_rendered",
-		activityProjector.OnContentVerdictRendered,
+		"publish_media_upload_requested_realtime",
+		publishMediaRealtime.OnUploadRequested,
+	))
+	reg.Register(domainmedia.EventTypeMediaUploaded, dedup.With(
+		dedupRepo,
+		"publish_media_uploaded_realtime",
+		publishMediaRealtime.OnUploaded,
+	))
+	reg.Register(domainmedia.EventTypeMediaStatusChanged, dedup.With(
+		dedupRepo,
+		"publish_media_status_changed_realtime",
+		publishMediaRealtime.OnStatusChanged,
+	))
+	reg.Register(domainmedia.EventTypeMediaStatusChanged, dedup.With(
+		dedupRepo,
+		"project_activity_on_media_status_changed",
+		activityProjector.OnMediaStatusChanged,
+	))
+	reg.Register(domainmedia.EventTypeMediaVerdictRendered, dedup.With(
+		dedupRepo,
+		"publish_media_verdict_rendered_realtime",
+		publishMediaRealtime.OnVerdictRendered,
+	))
+	reg.Register(domainmedia.EventTypeMediaVerdictRendered, dedup.With(
+		dedupRepo,
+		"project_activity_on_media_verdict_rendered",
+		activityProjector.OnMediaVerdictRendered,
 	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)
