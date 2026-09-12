@@ -19,8 +19,9 @@ type ContentWriteRepository interface {
 
 type ContentReadRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*ContentView, error)
-	FindPageByCampaignID(
+	FindPageByClientID(
 		ctx context.Context,
+		clientID uuid.UUID,
 		campaignID uuid.UUID,
 		query paginate.PaginateQuery,
 	) ([]ContentView, int64, error)
@@ -28,10 +29,13 @@ type ContentReadRepository interface {
 }
 
 type ContentStats struct {
-	Failed      int64
-	Human       int64
-	AIGenerated int64
-	Uncertain   int64
+	PendingUpload int64
+	Uploaded      int64
+	Analyzing     int64
+	Failed        int64
+	Human         int64
+	AIGenerated   int64
+	Uncertain     int64
 }
 
 type ContentView struct {

@@ -8,6 +8,8 @@ import (
 	contentcmd "go-api/internal/application/command/content"
 	domaincampaign "go-api/internal/domain/campaign"
 	domaincontent "go-api/internal/domain/content"
+
+	"github.com/google/uuid"
 )
 
 type ContentDetailResponse struct {
@@ -56,13 +58,14 @@ func NewContentDetailResponseFromView(view domaincontent.ContentView) ContentDet
 
 func NewContentListResponseFromViews(
 	views []domaincontent.ContentView,
-	campaign *domaincampaign.CampaignView,
+	campaigns map[uuid.UUID]*domaincampaign.CampaignView,
 ) []ContentDetailResponse {
 	items := make([]ContentDetailResponse, 0, len(views))
-	campaignResp := contentCampaignResponse(campaign)
 	for _, view := range views {
 		item := NewContentDetailResponseFromView(view)
-		item.Campaign = campaignResp
+		if campaigns != nil {
+			item.Campaign = contentCampaignResponse(campaigns[view.CampaignID])
+		}
 		items = append(items, item)
 	}
 	return items
@@ -88,10 +91,13 @@ func contentCampaignResponse(campaign *domaincampaign.CampaignView) *ContentCamp
 }
 
 type ContentStatsResponse struct {
-	Failed      int64 `json:"failed"`
-	Human       int64 `json:"human"`
-	AIGenerated int64 `json:"aiGenerated"`
-	Uncertain   int64 `json:"uncertain"`
+	PendingUpload int64 `json:"pendingUpload"`
+	Uploaded      int64 `json:"uploaded"`
+	Analyzing     int64 `json:"analyzing"`
+	Failed        int64 `json:"failed"`
+	Human         int64 `json:"human"`
+	AIGenerated   int64 `json:"aiGenerated"`
+	Uncertain     int64 `json:"uncertain"`
 }
 
 func NewContentStatsResponse(stats *domaincontent.ContentStats) ContentStatsResponse {
@@ -99,10 +105,13 @@ func NewContentStatsResponse(stats *domaincontent.ContentStats) ContentStatsResp
 		return ContentStatsResponse{}
 	}
 	return ContentStatsResponse{
-		Failed:      stats.Failed,
-		Human:       stats.Human,
-		AIGenerated: stats.AIGenerated,
-		Uncertain:   stats.Uncertain,
+		PendingUpload: stats.PendingUpload,
+		Uploaded:      stats.Uploaded,
+		Analyzing:     stats.Analyzing,
+		Failed:        stats.Failed,
+		Human:         stats.Human,
+		AIGenerated:   stats.AIGenerated,
+		Uncertain:     stats.Uncertain,
 	}
 }
 

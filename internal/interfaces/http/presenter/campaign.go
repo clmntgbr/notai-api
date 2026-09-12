@@ -9,10 +9,13 @@ import (
 )
 
 type CampaignContentCountsResponse struct {
-	Failed      int64 `json:"failed"`
-	Human       int64 `json:"human"`
-	AIGenerated int64 `json:"aiGenerated"`
-	Uncertain   int64 `json:"uncertain"`
+	PendingUpload int64 `json:"pendingUpload"`
+	Uploaded      int64 `json:"uploaded"`
+	Analyzing     int64 `json:"analyzing"`
+	Failed        int64 `json:"failed"`
+	Human         int64 `json:"human"`
+	AIGenerated   int64 `json:"aiGenerated"`
+	Uncertain     int64 `json:"uncertain"`
 }
 
 type CampaignDetailResponse struct {
@@ -45,10 +48,13 @@ func NewCampaignDetailResponseFromView(view domaincampaign.CampaignView) Campaig
 		StartAt: view.StartAt,
 		EndAt:   view.EndAt,
 		ContentCounts: CampaignContentCountsResponse{
-			Failed:      view.ContentFailedCount,
-			Human:       view.ContentHumanCount,
-			AIGenerated: view.ContentAIGeneratedCount,
-			Uncertain:   view.ContentUncertainCount,
+			PendingUpload: view.ContentPendingUploadCount,
+			Uploaded:      view.ContentUploadedCount,
+			Analyzing:     view.ContentAnalyzingCount,
+			Failed:        view.ContentFailedCount,
+			Human:         view.ContentHumanCount,
+			AIGenerated:   view.ContentAIGeneratedCount,
+			Uncertain:     view.ContentUncertainCount,
 		},
 		CreatedAt: view.CreatedAt,
 		UpdatedAt: view.UpdatedAt,

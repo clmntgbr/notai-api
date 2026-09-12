@@ -155,7 +155,7 @@ func (h *ContentHandler) List(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(paginate.NewPaginateResponse(
-		presenter.NewContentListResponseFromViews(result.Views, result.Campaign),
+		presenter.NewContentListResponseFromViews(result.Views, result.Campaigns),
 		int(result.Total),
 		listQuery.PaginateQuery,
 	))

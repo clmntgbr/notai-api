@@ -32,11 +32,14 @@ type campaignRow struct {
 func (campaignRow) TableName() string { return "campaigns" }
 
 type campaignContentCountRow struct {
-	CampaignID  uuid.UUID
-	Failed      int64
-	Human       int64
-	AIGenerated int64
-	Uncertain   int64
+	CampaignID    uuid.UUID
+	PendingUpload int64
+	Uploaded      int64
+	Analyzing     int64
+	Failed        int64
+	Human         int64
+	AIGenerated   int64
+	Uncertain     int64
 }
 
 type campaignReadRepository struct {
@@ -68,6 +71,31 @@ func (r *campaignReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*d
 		return nil, err
 	}
 	return view, nil
+}
+
+func (r *campaignReadRepository) FindByIDs(
+	ctx context.Context,
+	ids []uuid.UUID,
+) ([]domaincampaign.CampaignView, error) {
+	if len(ids) == 0 {
+		return []domaincampaign.CampaignView{}, nil
+	}
+
+	var rows []campaignRow
+	err := r.db.WithContext(ctx).
+		Select(campaignSelectCols).
+		Where("deleted_at IS NULL").
+		Where("id IN ?", ids).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]domaincampaign.CampaignView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, *toCampaignView(row))
+	}
+	return views, nil
 }
 
 func (r *campaignReadRepository) FindDefaultByClientID(
@@ -165,6 +193,9 @@ func (r *campaignReadRepository) attachContentCounts(
 		Table("contents").
 		Select(`
 			campaign_id,
+			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
 			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
 			COUNT(*) FILTER (WHERE label = 'human') AS human,
 			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
@@ -182,6 +213,9 @@ func (r *campaignReadRepository) attachContentCounts(
 		if !ok {
 			continue
 		}
+		view.ContentPendingUploadCount = row.PendingUpload
+		view.ContentUploadedCount = row.Uploaded
+		view.ContentAnalyzingCount = row.Analyzing
 		view.ContentFailedCount = row.Failed
 		view.ContentHumanCount = row.Human
 		view.ContentAIGeneratedCount = row.AIGenerated

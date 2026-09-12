@@ -231,15 +231,18 @@ func sampleCampaignEntity() *domaincampaign.Campaign {
 func sampleCampaignView() *domaincampaign.CampaignView {
 	e := sampleCampaignEntity()
 	return &domaincampaign.CampaignView{
-		ID:                      e.ID,
-		ClientID:                e.ClientID,
-		Name:                    e.Name,
-		CreatedAt:               e.CreatedAt,
-		UpdatedAt:               e.UpdatedAt,
-		ContentFailedCount:      1,
-		ContentHumanCount:       2,
-		ContentAIGeneratedCount: 3,
-		ContentUncertainCount:   4,
+		ID:                        e.ID,
+		ClientID:                  e.ClientID,
+		Name:                      e.Name,
+		CreatedAt:                 e.CreatedAt,
+		UpdatedAt:                 e.UpdatedAt,
+		ContentPendingUploadCount: 5,
+		ContentUploadedCount:      6,
+		ContentAnalyzingCount:     7,
+		ContentFailedCount:        1,
+		ContentHumanCount:         2,
+		ContentAIGeneratedCount:   3,
+		ContentUncertainCount:     4,
 	}
 }
 
@@ -422,7 +425,9 @@ func TestCampaignHandler_GetByID_Success(t *testing.T) {
 		t.Fatalf("contentCounts: %#v", body["contentCounts"])
 	}
 	if counts["failed"] != float64(1) || counts["human"] != float64(2) ||
-		counts["aiGenerated"] != float64(3) || counts["uncertain"] != float64(4) {
+		counts["aiGenerated"] != float64(3) || counts["uncertain"] != float64(4) ||
+		counts["pendingUpload"] != float64(5) || counts["uploaded"] != float64(6) ||
+		counts["analyzing"] != float64(7) {
 		t.Fatalf("contentCounts: %#v", counts)
 	}
 }

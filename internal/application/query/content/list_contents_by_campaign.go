@@ -18,9 +18,9 @@ type ListContentsByCampaignQuery struct {
 }
 
 type ListContentsByCampaignResult struct {
-	Views    []domaincontent.ContentView
-	Total    int64
-	Campaign *domaincampaign.CampaignView
+	Views     []domaincontent.ContentView
+	Total     int64
+	Campaigns map[uuid.UUID]*domaincampaign.CampaignView
 }
 
 type ListContentsByCampaignHandler struct {
@@ -46,40 +46,60 @@ func (h *ListContentsByCampaignHandler) Handle(
 		return nil, errors.New("clientId is required")
 	}
 
-	campaign, err := h.resolveCampaign(ctx, q.CampaignID, q.ClientID)
+	if q.CampaignID != uuid.Nil {
+		campaign, err := h.campaignRepo.FindByID(ctx, q.CampaignID)
+		if err != nil {
+			return nil, errors.New("failed to get campaign")
+		}
+		if campaign == nil || campaign.ClientID != q.ClientID {
+			return nil, errors.New("campaign not found")
+		}
+	}
+
+	views, total, err := h.contentRepo.FindPageByClientID(ctx, q.ClientID, q.CampaignID, q.Query)
+	if err != nil {
+		return nil, errors.New("failed to list contents")
+	}
+
+	campaigns, err := h.loadCampaigns(ctx, views)
 	if err != nil {
 		return nil, err
 	}
 
-	views, total, err := h.contentRepo.FindPageByCampaignID(ctx, campaign.ID, q.Query)
-	if err != nil {
-		return nil, errors.New("failed to list contents")
-	}
 	return &ListContentsByCampaignResult{
-		Views:    views,
-		Total:    total,
-		Campaign: campaign,
+		Views:     views,
+		Total:     total,
+		Campaigns: campaigns,
 	}, nil
 }
 
-func (h *ListContentsByCampaignHandler) resolveCampaign(
+func (h *ListContentsByCampaignHandler) loadCampaigns(
 	ctx context.Context,
-	campaignID, clientID uuid.UUID,
-) (*domaincampaign.CampaignView, error) {
-	var (
-		campaign *domaincampaign.CampaignView
-		err      error
-	)
-	if campaignID == uuid.Nil {
-		campaign, err = h.campaignRepo.FindDefaultByClientID(ctx, clientID)
-	} else {
-		campaign, err = h.campaignRepo.FindByID(ctx, campaignID)
+	views []domaincontent.ContentView,
+) (map[uuid.UUID]*domaincampaign.CampaignView, error) {
+	if len(views) == 0 {
+		return map[uuid.UUID]*domaincampaign.CampaignView{}, nil
 	}
+
+	seen := make(map[uuid.UUID]struct{}, len(views))
+	ids := make([]uuid.UUID, 0, len(views))
+	for _, view := range views {
+		if _, ok := seen[view.CampaignID]; ok {
+			continue
+		}
+		seen[view.CampaignID] = struct{}{}
+		ids = append(ids, view.CampaignID)
+	}
+
+	loaded, err := h.campaignRepo.FindByIDs(ctx, ids)
 	if err != nil {
-		return nil, errors.New("failed to get campaign")
+		return nil, errors.New("failed to get campaigns")
 	}
-	if campaign == nil || campaign.ClientID != clientID {
-		return nil, errors.New("campaign not found")
+
+	campaigns := make(map[uuid.UUID]*domaincampaign.CampaignView, len(loaded))
+	for i := range loaded {
+		campaign := loaded[i]
+		campaigns[campaign.ID] = &campaign
 	}
-	return campaign, nil
+	return campaigns, nil
 }

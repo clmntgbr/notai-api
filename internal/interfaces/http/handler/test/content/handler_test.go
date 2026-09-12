@@ -550,15 +550,18 @@ func TestContentHandler_Presign_EmptyFileListError(t *testing.T) {
 }
 
 func TestContentHandler_List_Success(t *testing.T) {
+	campaignID := testutil.TestCampaignID
 	list := &mockListContentsByCampaignHandler{
 		result: &querycontent.ListContentsByCampaignResult{
 			Views: []domaincontent.ContentView{*sampleContentView()},
 			Total: 1,
-			Campaign: &domaincampaign.CampaignView{
-				ID:        testutil.TestCampaignID,
-				ClientID:  testutil.TestClientID,
-				Name:      "Spring Launch",
-				IsDefault: false,
+			Campaigns: map[uuid.UUID]*domaincampaign.CampaignView{
+				campaignID: {
+					ID:        campaignID,
+					ClientID:  testutil.TestClientID,
+					Name:      "Spring Launch",
+					IsDefault: false,
+				},
 			},
 		},
 	}
@@ -567,7 +570,7 @@ func TestContentHandler_List_Success(t *testing.T) {
 	app.Get("/contents", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/contents?campaignId="+testutil.TestCampaignID.String(),
+		"/contents?campaignId="+campaignID.String(),
 		nil,
 	))
 	if err != nil {
@@ -576,7 +579,7 @@ func TestContentHandler_List_Success(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
-	if !list.called || list.query.CampaignID != testutil.TestCampaignID || list.query.ClientID != testutil.TestClientID {
+	if !list.called || list.query.CampaignID != campaignID || list.query.ClientID != testutil.TestClientID {
 		t.Fatalf("list query: %+v", list.query)
 	}
 	if list.query.Query.OrderBy != paginate.OrderByDesc {
@@ -595,15 +598,18 @@ func TestContentHandler_List_Success(t *testing.T) {
 }
 
 func TestContentHandler_List_DefaultCampaign_OmitsCampaign(t *testing.T) {
+	campaignID := testutil.TestCampaignID
 	list := &mockListContentsByCampaignHandler{
 		result: &querycontent.ListContentsByCampaignResult{
 			Views: []domaincontent.ContentView{*sampleContentView()},
 			Total: 1,
-			Campaign: &domaincampaign.CampaignView{
-				ID:        testutil.TestCampaignID,
-				ClientID:  testutil.TestClientID,
-				Name:      "Default",
-				IsDefault: true,
+			Campaigns: map[uuid.UUID]*domaincampaign.CampaignView{
+				campaignID: {
+					ID:        campaignID,
+					ClientID:  testutil.TestClientID,
+					Name:      "Default",
+					IsDefault: true,
+				},
 			},
 		},
 	}
@@ -642,7 +648,7 @@ func TestContentHandler_List_EmptyCampaignID(t *testing.T) {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 	if !list.called || list.query.CampaignID != uuid.Nil {
-		t.Fatalf("expected nil campaign id, got %+v", list.query.CampaignID)
+		t.Fatalf("expected nil campaign id (all campaigns), got %+v", list.query.CampaignID)
 	}
 }
 
@@ -844,10 +850,13 @@ func TestContentHandler_GetByID_Internal(t *testing.T) {
 func TestContentHandler_Stats_Success(t *testing.T) {
 	stats := &mockContentStatsByClientHandler{
 		stats: &domaincontent.ContentStats{
-			Failed:      1,
-			Human:       2,
-			AIGenerated: 3,
-			Uncertain:   4,
+			PendingUpload: 5,
+			Uploaded:      6,
+			Analyzing:     7,
+			Failed:        1,
+			Human:         2,
+			AIGenerated:   3,
+			Uncertain:     4,
 		},
 	}
 	h := newContentHandler(nil, nil, nil, stats, nil)
@@ -866,7 +875,9 @@ func TestContentHandler_Stats_Success(t *testing.T) {
 	}
 	body := testutil.DecodeJSONMap(t, resp)
 	if body["failed"] != float64(1) || body["human"] != float64(2) ||
-		body["aiGenerated"] != float64(3) || body["uncertain"] != float64(4) {
+		body["aiGenerated"] != float64(3) || body["uncertain"] != float64(4) ||
+		body["pendingUpload"] != float64(5) || body["uploaded"] != float64(6) ||
+		body["analyzing"] != float64(7) {
 		t.Fatalf("body: %#v", body)
 	}
 }

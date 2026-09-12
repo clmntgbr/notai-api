@@ -54,8 +54,9 @@ func (r *contentReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*do
 	return toContentView(row), nil
 }
 
-func (r *contentReadRepository) FindPageByCampaignID(
+func (r *contentReadRepository) FindPageByClientID(
 	ctx context.Context,
+	clientID uuid.UUID,
 	campaignID uuid.UUID,
 	query paginate.PaginateQuery,
 ) ([]domaincontent.ContentView, int64, error) {
@@ -74,7 +75,10 @@ func (r *contentReadRepository) FindPageByCampaignID(
 
 	db := r.db.WithContext(ctx).
 		Model(&contentRow{}).
-		Where("campaign_id = ?", campaignID)
+		Where("client_id = ?", clientID)
+	if campaignID != uuid.Nil {
+		db = db.Where("campaign_id = ?", campaignID)
+	}
 
 	if query.Search != "" {
 		db = db.Where("filename ILIKE ?", "%"+query.Search+"%")
@@ -102,14 +106,20 @@ func (r *contentReadRepository) CountStatsByClientID(
 	clientID uuid.UUID,
 ) (*domaincontent.ContentStats, error) {
 	var row struct {
-		Failed      int64
-		Human       int64
-		AIGenerated int64
-		Uncertain   int64
+		PendingUpload int64
+		Uploaded      int64
+		Analyzing     int64
+		Failed        int64
+		Human         int64
+		AIGenerated   int64
+		Uncertain     int64
 	}
 	err := r.db.WithContext(ctx).
 		Table("contents").
 		Select(`
+			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
 			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
 			COUNT(*) FILTER (WHERE label = 'human') AS human,
 			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
@@ -121,10 +131,13 @@ func (r *contentReadRepository) CountStatsByClientID(
 		return nil, err
 	}
 	return &domaincontent.ContentStats{
-		Failed:      row.Failed,
-		Human:       row.Human,
-		AIGenerated: row.AIGenerated,
-		Uncertain:   row.Uncertain,
+		PendingUpload: row.PendingUpload,
+		Uploaded:      row.Uploaded,
+		Analyzing:     row.Analyzing,
+		Failed:        row.Failed,
+		Human:         row.Human,
+		AIGenerated:   row.AIGenerated,
+		Uncertain:     row.Uncertain,
 	}, nil
 }
 

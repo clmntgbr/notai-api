@@ -20,6 +20,7 @@ type CampaignWriteRepository interface {
 
 type CampaignReadRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*CampaignView, error)
+	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]CampaignView, error)
 	FindDefaultByClientID(ctx context.Context, clientID uuid.UUID) (*CampaignView, error)
 	FindPageByClientID(ctx context.Context, clientID uuid.UUID, query paginate.PaginateQuery) ([]CampaignView, int64, error)
 }
@@ -40,8 +41,11 @@ type CampaignView struct {
 	BackgroundFilename     string
 	BackgroundContentType  string
 
-	ContentFailedCount      int64
-	ContentHumanCount       int64
-	ContentAIGeneratedCount int64
-	ContentUncertainCount   int64
+	ContentPendingUploadCount int64
+	ContentUploadedCount      int64
+	ContentAnalyzingCount     int64
+	ContentFailedCount        int64
+	ContentHumanCount         int64
+	ContentAIGeneratedCount   int64
+	ContentUncertainCount     int64
 }
