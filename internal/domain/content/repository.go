@@ -29,6 +29,20 @@ type ContentReadRepository interface {
 }
 
 type ContentStats struct {
+	PendingUpload   int64
+	Uploaded        int64
+	Analyzing       int64
+	Analyzed        int64
+	Failed          int64
+	Human           int64
+	AIGenerated     int64
+	Uncertain       int64
+	MonthlyControls []ContentMonthlyStats
+}
+
+// ContentMonthlyStats is one month of content control counts.
+type ContentMonthlyStats struct {
+	Month         string // YYYY-MM (UTC)
 	PendingUpload int64
 	Uploaded      int64
 	Analyzing     int64

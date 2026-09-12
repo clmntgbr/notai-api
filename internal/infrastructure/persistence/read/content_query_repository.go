@@ -132,16 +132,91 @@ func (r *contentReadRepository) CountStatsByClientID(
 	if err != nil {
 		return nil, err
 	}
+
+	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &domaincontent.ContentStats{
-		PendingUpload: row.PendingUpload,
-		Uploaded:      row.Uploaded,
-		Analyzing:     row.Analyzing,
-		Analyzed:      row.Analyzed,
-		Failed:        row.Failed,
-		Human:         row.Human,
-		AIGenerated:   row.AIGenerated,
-		Uncertain:     row.Uncertain,
+		PendingUpload:   row.PendingUpload,
+		Uploaded:        row.Uploaded,
+		Analyzing:       row.Analyzing,
+		Analyzed:        row.Analyzed,
+		Failed:          row.Failed,
+		Human:           row.Human,
+		AIGenerated:     row.AIGenerated,
+		Uncertain:       row.Uncertain,
+		MonthlyControls: monthly,
 	}, nil
+}
+
+func (r *contentReadRepository) countMonthlyControlsByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) ([]domaincontent.ContentMonthlyStats, error) {
+	now := time.Now().UTC()
+	// Inclusive window: current month + 5 previous = 6 months.
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
+
+	var rows []struct {
+		Month         string
+		PendingUpload int64
+		Uploaded      int64
+		Analyzing     int64
+		Analyzed      int64
+		Failed        int64
+		Human         int64
+		AIGenerated   int64
+		Uncertain     int64
+	}
+	err := r.db.WithContext(ctx).
+		Table("contents").
+		Select(`
+			to_char(date_trunc('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
+			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
+			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
+			COUNT(*) FILTER (WHERE status = 'analyzing') AS analyzing,
+			COUNT(*) FILTER (WHERE status = 'analyzed') AS analyzed,
+			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+			COUNT(*) FILTER (WHERE label = 'human') AS human,
+			COUNT(*) FILTER (WHERE label = 'ai_generated') AS ai_generated,
+			COUNT(*) FILTER (WHERE label = 'uncertain') AS uncertain
+		`).
+		Where("client_id = ? AND created_at >= ?", clientID, start).
+		Group("month").
+		Order("month ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	byMonth := make(map[string]domaincontent.ContentMonthlyStats, len(rows))
+	for _, row := range rows {
+		byMonth[row.Month] = domaincontent.ContentMonthlyStats{
+			Month:         row.Month,
+			PendingUpload: row.PendingUpload,
+			Uploaded:      row.Uploaded,
+			Analyzing:     row.Analyzing,
+			Analyzed:      row.Analyzed,
+			Failed:        row.Failed,
+			Human:         row.Human,
+			AIGenerated:   row.AIGenerated,
+			Uncertain:     row.Uncertain,
+		}
+	}
+
+	out := make([]domaincontent.ContentMonthlyStats, 0, 6)
+	for i := 0; i < 6; i++ {
+		monthStart := start.AddDate(0, i, 0)
+		key := monthStart.Format("2006-01")
+		if stats, ok := byMonth[key]; ok {
+			out = append(out, stats)
+			continue
+		}
+		out = append(out, domaincontent.ContentMonthlyStats{Month: key})
+	}
+	return out, nil
 }
 
 func toContentView(row contentRow) *domaincontent.ContentView {

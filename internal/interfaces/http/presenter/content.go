@@ -91,29 +91,59 @@ func contentCampaignResponse(campaign *domaincampaign.CampaignView) *ContentCamp
 }
 
 type ContentStatsResponse struct {
-	PendingUpload int64 `json:"pendingUpload"`
-	Uploaded      int64 `json:"uploaded"`
-	Analyzing     int64 `json:"analyzing"`
-	Analyzed      int64 `json:"analyzed"`
-	Failed        int64 `json:"failed"`
-	Human         int64 `json:"human"`
-	AIGenerated   int64 `json:"aiGenerated"`
-	Uncertain     int64 `json:"uncertain"`
+	PendingUpload   int64                          `json:"pendingUpload"`
+	Uploaded        int64                          `json:"uploaded"`
+	Analyzing       int64                          `json:"analyzing"`
+	Analyzed        int64                          `json:"analyzed"`
+	Failed          int64                          `json:"failed"`
+	Human           int64                          `json:"human"`
+	AIGenerated     int64                          `json:"aiGenerated"`
+	Uncertain       int64                          `json:"uncertain"`
+	MonthlyControls []ContentMonthlyControlsResponse `json:"monthlyControls"`
+}
+
+type ContentMonthlyControlsResponse struct {
+	Month         string `json:"month"`
+	PendingUpload int64  `json:"pendingUpload"`
+	Uploaded      int64  `json:"uploaded"`
+	Analyzing     int64  `json:"analyzing"`
+	Analyzed      int64  `json:"analyzed"`
+	Failed        int64  `json:"failed"`
+	Human         int64  `json:"human"`
+	AIGenerated   int64  `json:"aiGenerated"`
+	Uncertain     int64  `json:"uncertain"`
 }
 
 func NewContentStatsResponse(stats *domaincontent.ContentStats) ContentStatsResponse {
 	if stats == nil {
-		return ContentStatsResponse{}
+		return ContentStatsResponse{
+			MonthlyControls: make([]ContentMonthlyControlsResponse, 0),
+		}
+	}
+	monthly := make([]ContentMonthlyControlsResponse, 0, len(stats.MonthlyControls))
+	for _, m := range stats.MonthlyControls {
+		monthly = append(monthly, ContentMonthlyControlsResponse{
+			Month:         m.Month,
+			PendingUpload: m.PendingUpload,
+			Uploaded:      m.Uploaded,
+			Analyzing:     m.Analyzing,
+			Analyzed:      m.Analyzed,
+			Failed:        m.Failed,
+			Human:         m.Human,
+			AIGenerated:   m.AIGenerated,
+			Uncertain:     m.Uncertain,
+		})
 	}
 	return ContentStatsResponse{
-		PendingUpload: stats.PendingUpload,
-		Uploaded:      stats.Uploaded,
-		Analyzing:     stats.Analyzing,
-		Analyzed:      stats.Analyzed,
-		Failed:        stats.Failed,
-		Human:         stats.Human,
-		AIGenerated:   stats.AIGenerated,
-		Uncertain:     stats.Uncertain,
+		PendingUpload:   stats.PendingUpload,
+		Uploaded:        stats.Uploaded,
+		Analyzing:       stats.Analyzing,
+		Analyzed:        stats.Analyzed,
+		Failed:          stats.Failed,
+		Human:           stats.Human,
+		AIGenerated:     stats.AIGenerated,
+		Uncertain:       stats.Uncertain,
+		MonthlyControls: monthly,
 	}
 }
 

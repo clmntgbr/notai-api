@@ -858,6 +858,14 @@ func TestContentHandler_Stats_Success(t *testing.T) {
 			Human:         2,
 			AIGenerated:   3,
 			Uncertain:     4,
+			MonthlyControls: []domaincontent.ContentMonthlyStats{
+				{Month: "2026-04", Analyzed: 1, Human: 1},
+				{Month: "2026-05"},
+				{Month: "2026-06", Analyzed: 2, AIGenerated: 2},
+				{Month: "2026-07"},
+				{Month: "2026-08"},
+				{Month: "2026-09", Analyzed: 5, Human: 1, AIGenerated: 1, Uncertain: 3},
+			},
 		},
 	}
 	h := newContentHandler(nil, nil, nil, stats, nil)
@@ -880,6 +888,18 @@ func TestContentHandler_Stats_Success(t *testing.T) {
 		body["pendingUpload"] != float64(5) || body["uploaded"] != float64(6) ||
 		body["analyzing"] != float64(7) || body["analyzed"] != float64(8) {
 		t.Fatalf("body: %#v", body)
+	}
+	monthly, ok := body["monthlyControls"].([]any)
+	if !ok || len(monthly) != 6 {
+		t.Fatalf("monthlyControls: %#v", body["monthlyControls"])
+	}
+	first, ok := monthly[0].(map[string]any)
+	if !ok || first["month"] != "2026-04" || first["analyzed"] != float64(1) {
+		t.Fatalf("first month: %#v", monthly[0])
+	}
+	last, ok := monthly[5].(map[string]any)
+	if !ok || last["month"] != "2026-09" || last["uncertain"] != float64(3) {
+		t.Fatalf("last month: %#v", monthly[5])
 	}
 }
 
