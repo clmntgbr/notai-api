@@ -9,6 +9,7 @@ const (
 	ActionMemberRemoved        = "member_removed"
 	ActionBackgroundUpdated    = "background_updated"
 	ActionStatusChanged        = "status_changed"
+	ActionVerdictRendered      = "verdict_rendered"
 
 	EntityUser     = "user"
 	EntityClient   = "client"
@@ -16,6 +17,12 @@ const (
 	EntityContent  = "content"
 	EntityMedia    = "media"
 	EntityActivity = "activity"
+
+	// ChannelInterest selects which per-user Centrifugo channel receives an event.
+	ChannelInterestAccount  = "account"
+	ChannelInterestMedia    = "media"
+	ChannelInterestContent  = "content"
+	ChannelInterestActivity = "activity"
 )
 
 func EventType(entity, action string) string {

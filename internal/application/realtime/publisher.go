@@ -21,6 +21,19 @@ func NewPublisher(transport port.RealtimePublisher) *Publisher {
 	return &Publisher{transport: transport}
 }
 
+func interestForEntity(entity string) string {
+	switch entity {
+	case EntityMedia:
+		return ChannelInterestMedia
+	case EntityContent:
+		return ChannelInterestContent
+	case EntityActivity:
+		return ChannelInterestActivity
+	default:
+		return ChannelInterestAccount
+	}
+}
+
 // ToMembers delivers the event to an already-resolved set of members.
 func (p *Publisher) ToMembers(
 	ctx context.Context,
@@ -30,15 +43,19 @@ func (p *Publisher) ToMembers(
 	payload any,
 ) error {
 	eventType := EventType(entity, action)
+	interest := interestForEntity(entity)
 	for _, memberID := range memberIDs {
-		if err := p.transport.PublishToUser(ctx, memberID, eventType, payload); err != nil {
+		if err := p.transport.PublishToUserInterest(ctx, memberID, interest, eventType, payload); err != nil {
 			log.Printf(
-				"centrifugo publish failed type=%s userId=%s: %v",
-				eventType, memberID, err,
+				"centrifugo publish failed type=%s interest=%s userId=%s: %v",
+				eventType, interest, memberID, err,
 			)
 			return messaging.Retryable(err)
 		}
-		log.Printf("centrifugo published type=%s userId=%s", eventType, memberID)
+		log.Printf(
+			"centrifugo published type=%s interest=%s userId=%s",
+			eventType, interest, memberID,
+		)
 	}
 	return nil
 }
@@ -73,10 +90,17 @@ func (p *Publisher) ToUser(
 	}
 
 	eventType := EventType(entity, action)
-	if err := p.transport.PublishToUser(ctx, userID, eventType, payload); err != nil {
-		log.Printf("centrifugo publish failed type=%s userId=%s: %v", eventType, userIDRaw, err)
+	interest := interestForEntity(entity)
+	if err := p.transport.PublishToUserInterest(ctx, userID, interest, eventType, payload); err != nil {
+		log.Printf(
+			"centrifugo publish failed type=%s interest=%s userId=%s: %v",
+			eventType, interest, userIDRaw, err,
+		)
 		return messaging.Retryable(err)
 	}
-	log.Printf("centrifugo published type=%s userId=%s", eventType, userIDRaw)
+	log.Printf(
+		"centrifugo published type=%s interest=%s userId=%s",
+		eventType, interest, userIDRaw,
+	)
 	return nil
 }

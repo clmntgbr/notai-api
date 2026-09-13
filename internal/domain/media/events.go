@@ -36,6 +36,7 @@ type MediaUploaded struct {
 	MediaType  string    `json:"mediaType"`
 	ObjectKey  string    `json:"objectKey"`
 	SizeBytes  int64     `json:"sizeBytes"`
+	Status     string    `json:"status"`
 	Timestamp  time.Time `json:"timestamp"`
 }
 
@@ -81,6 +82,7 @@ type MediaVerdictRendered struct {
 	FlaggedCount int       `json:"flaggedCount"`
 	TotalCount   int       `json:"totalCount"`
 	FailedCount  int       `json:"failedCount"`
+	Status       string    `json:"status"`
 	Timestamp    time.Time `json:"timestamp"`
 }
 

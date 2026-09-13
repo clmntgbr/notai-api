@@ -85,18 +85,18 @@ func NewThumbnailKey(clientID, campaignID, contentID uuid.UUID) string {
 
 // Content is one analyzable unit (full image or a video frame).
 type Content struct {
-	ID          uuid.UUID
-	MediaID     uuid.UUID
-	FrameIndex  *int
-	TimestampMs *int64
-	ObjectKey   string
+	ID           uuid.UUID
+	MediaID      uuid.UUID
+	FrameIndex   *int
+	TimestampMs  *int64
+	ObjectKey    string
 	ThumbnailKey *string
-	SizeBytes   *int64
-	Label       *Label
-	Confidence  *float64
-	Status      Status
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	SizeBytes    *int64
+	Label        *Label
+	Confidence   *float64
+	Status       Status
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 
 	// Ownership context for event payloads (not persisted on contents table).
 	CampaignID uuid.UUID
@@ -124,16 +124,16 @@ func NewFromMedia(
 	now := time.Now().UTC()
 	id := uuid.New()
 	c := &Content{
-		ID:         id,
-		MediaID:    mediaID,
-		FrameIndex: frameIndex,
+		ID:          id,
+		MediaID:     mediaID,
+		FrameIndex:  frameIndex,
 		TimestampMs: timestampMs,
-		ObjectKey:  objectKey,
-		Status:     StatusUploaded,
-		CampaignID: campaignID,
-		ClientID:   clientID,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ObjectKey:   objectKey,
+		Status:      StatusUploaded,
+		CampaignID:  campaignID,
+		ClientID:    clientID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	if sizeBytes < 0 {
 		sizeBytes = 0
@@ -154,7 +154,6 @@ func NewFromMedia(
 		Status:     string(c.Status),
 		Timestamp:  now,
 	})
-	c.recordStatusChanged(now)
 	c.recordEvent(ContentUploaded{
 		ID:           uuid.New().String(),
 		ContentID:    c.ID.String(),
@@ -214,7 +213,6 @@ func (c *Content) RenderVerdict(verdict Verdict) error {
 	c.Confidence = &confidence
 	c.Status = StatusAnalyzed
 	c.UpdatedAt = now
-	c.recordStatusChanged(now)
 	c.recordEvent(ContentVerdictRendered{
 		ID:         uuid.New().String(),
 		ContentID:  c.ID.String(),

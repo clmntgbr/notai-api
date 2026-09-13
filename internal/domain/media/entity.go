@@ -40,9 +40,9 @@ var (
 )
 
 const (
-	MaxPresignBatch  = 20
-	MaxMediaBytes    = 200 << 20 // 200 MiB (videos)
-	MaxImageBytes    = 20 << 20  // 20 MiB
+	MaxPresignBatch   = 20
+	MaxMediaBytes     = 200 << 20 // 200 MiB (videos)
+	MaxImageBytes     = 20 << 20  // 20 MiB
 	ThumbnailMaxWidth = 400
 )
 
@@ -238,7 +238,6 @@ func (m *Media) MarkUploaded(sizeBytes int64, contentType string) error {
 	}
 	m.Status = StatusUploaded
 	m.UpdatedAt = now
-	m.recordStatusChanged(now)
 	m.recordEvent(MediaUploaded{
 		ID:         uuid.New().String(),
 		MediaID:    m.ID.String(),
@@ -247,6 +246,7 @@ func (m *Media) MarkUploaded(sizeBytes int64, contentType string) error {
 		MediaType:  string(m.MediaType),
 		ObjectKey:  m.ObjectKey,
 		SizeBytes:  sizeBytes,
+		Status:     string(m.Status),
 		Timestamp:  now,
 	})
 	return nil
@@ -286,7 +286,6 @@ func (m *Media) RenderGlobalVerdict(v Verdict) error {
 	m.AnalyzedAt = &now
 	m.Status = StatusAnalyzed
 	m.UpdatedAt = now
-	m.recordStatusChanged(now)
 	m.recordEvent(MediaVerdictRendered{
 		ID:           uuid.New().String(),
 		MediaID:      m.ID.String(),
@@ -296,6 +295,7 @@ func (m *Media) RenderGlobalVerdict(v Verdict) error {
 		FlaggedCount: v.FlaggedCount,
 		TotalCount:   v.TotalCount,
 		FailedCount:  v.FailedCount,
+		Status:       string(m.Status),
 		Timestamp:    now,
 	})
 	return nil

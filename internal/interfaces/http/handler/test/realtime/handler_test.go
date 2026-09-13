@@ -27,11 +27,18 @@ func (m *mockConnectionCreator) CreateConnectionInfo(userID uuid.UUID) (port.Rea
 }
 
 func TestRealtimeHandler_GetConnection_Success(t *testing.T) {
+	account := "users:" + testutil.TestUserID.String() + "#" + testutil.TestUserID.String()
 	creator := &mockConnectionCreator{
 		info: port.RealtimeConnection{
 			Token:   "signed-token",
-			Channel: "users:" + testutil.TestUserID.String(),
-			WSURL:   "wss://realtime.example.com/connection/websocket",
+			Channel: account,
+			Channels: map[string]string{
+				"account":  account,
+				"media":    "users:" + testutil.TestUserID.String() + ":media#" + testutil.TestUserID.String(),
+				"content":  "users:" + testutil.TestUserID.String() + ":content#" + testutil.TestUserID.String(),
+				"activity": "users:" + testutil.TestUserID.String() + ":activity#" + testutil.TestUserID.String(),
+			},
+			WSURL: "wss://realtime.example.com/connection/websocket",
 		},
 	}
 	h := handler.NewRealtimeHandler(creator)
@@ -63,8 +70,14 @@ func TestRealtimeHandler_GetConnection_Success(t *testing.T) {
 	if out.Token != "signed-token" {
 		t.Fatalf("token: got %q", out.Token)
 	}
-	if out.Channel != "users:"+testutil.TestUserID.String() {
+	if out.Channel != account {
 		t.Fatalf("channel: got %q", out.Channel)
+	}
+	if out.Channels["media"] != "users:"+testutil.TestUserID.String()+":media#"+testutil.TestUserID.String() {
+		t.Fatalf("channels.media: got %#v", out.Channels)
+	}
+	if out.Channels["activity"] != "users:"+testutil.TestUserID.String()+":activity#"+testutil.TestUserID.String() {
+		t.Fatalf("channels.activity: got %#v", out.Channels)
 	}
 	if out.WSURL != "wss://realtime.example.com/connection/websocket" {
 		t.Fatalf("wsUrl: got %q", out.WSURL)

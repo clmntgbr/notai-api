@@ -22,8 +22,9 @@ func (c *ConnectionInfoCreator) CreateConnectionInfo(userID uuid.UUID) (port.Rea
 	}
 
 	return port.RealtimeConnection{
-		Token:   info.Token,
-		Channel: info.Channel,
-		WSURL:   info.WSURL,
+		Token:    info.Token,
+		Channel:  info.Channel,
+		Channels: info.Channels,
+		WSURL:    info.WSURL,
 	}, nil
 }

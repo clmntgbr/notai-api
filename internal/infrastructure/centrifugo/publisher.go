@@ -33,13 +33,22 @@ func apiEndpoint(baseURL string) string {
 	return baseURL + "/api"
 }
 
-func (p *Publisher) PublishToUser(ctx context.Context, userID uuid.UUID, eventType string, payload any) error {
+func (p *Publisher) PublishToUserInterest(
+	ctx context.Context,
+	userID uuid.UUID,
+	interest string,
+	eventType string,
+	payload any,
+) error {
 	body, err := marshalRealtimeEvent(eventType, payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal centrifugo event: %w", err)
 	}
 
-	channel := UserChannel(userID)
+	channel, err := UserInterestChannel(userID, interest)
+	if err != nil {
+		return fmt.Errorf("failed to resolve centrifugo channel: %w", err)
+	}
 	if _, err := p.client.Publish(ctx, channel, body); err != nil {
 		return fmt.Errorf("failed to publish to centrifugo channel %q: %w", channel, err)
 	}

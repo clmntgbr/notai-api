@@ -13,6 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// PublishRealtimeHandler publishes only terminal content verdicts.
+// Intermediate analysis steps (created / uploaded / status_changed / detector
+// result rows) stay in the outbox/DB for the pipeline and are not mirrored to
+// Centrifugo — the agency UI reacts to media-level progress plus this final
+// per-content verdict when drilling into a media.
 type PublishRealtimeHandler struct {
 	publisher  *realtime.Publisher
 	clientRepo domainclient.ClientReadRepository
@@ -28,36 +33,12 @@ func NewPublishRealtimeHandler(
 	}
 }
 
-func (h *PublishRealtimeHandler) OnCreated(ctx context.Context, payload []byte) error {
-	var evt domaincontent.ContentCreated
-	if err := json.Unmarshal(payload, &evt); err != nil {
-		return messaging.NonRetryable(err)
-	}
-	return h.publishToClientMembers(ctx, realtime.ActionCreated, evt.ClientID, evt)
-}
-
-func (h *PublishRealtimeHandler) OnUploaded(ctx context.Context, payload []byte) error {
-	var evt domaincontent.ContentUploaded
-	if err := json.Unmarshal(payload, &evt); err != nil {
-		return messaging.NonRetryable(err)
-	}
-	return h.publishToClientMembers(ctx, realtime.ActionUpdated, evt.ClientID, evt)
-}
-
-func (h *PublishRealtimeHandler) OnStatusChanged(ctx context.Context, payload []byte) error {
-	var evt domaincontent.ContentStatusChanged
-	if err := json.Unmarshal(payload, &evt); err != nil {
-		return messaging.NonRetryable(err)
-	}
-	return h.publishToClientMembers(ctx, realtime.ActionStatusChanged, evt.ClientID, evt)
-}
-
 func (h *PublishRealtimeHandler) OnVerdictRendered(ctx context.Context, payload []byte) error {
 	var evt domaincontent.ContentVerdictRendered
 	if err := json.Unmarshal(payload, &evt); err != nil {
 		return messaging.NonRetryable(err)
 	}
-	return h.publishToClientMembers(ctx, realtime.ActionUpdated, evt.ClientID, evt)
+	return h.publishToClientMembers(ctx, realtime.ActionVerdictRendered, evt.ClientID, evt)
 }
 
 func (h *PublishRealtimeHandler) publishToClientMembers(

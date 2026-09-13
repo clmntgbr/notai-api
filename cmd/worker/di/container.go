@@ -225,30 +225,15 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"content_created",
 		eventcontent.NewContentCreatedHandler().Handle,
 	))
-	reg.Register(domaincontent.EventTypeContentCreated, dedup.With(
-		dedupRepo,
-		"publish_content_created_realtime",
-		publishContentRealtime.OnCreated,
-	))
 	reg.Register(domaincontent.EventTypeContentUploaded, dedup.With(
 		dedupRepo,
 		"content_uploaded",
 		eventcontent.NewContentUploadedHandler().Handle,
 	))
-	reg.Register(domaincontent.EventTypeContentUploaded, dedup.With(
-		dedupRepo,
-		"publish_content_uploaded_realtime",
-		publishContentRealtime.OnUploaded,
-	))
 	reg.Register(domaincontent.EventTypeContentStatusChanged, dedup.With(
 		dedupRepo,
 		"content_status_changed",
 		eventcontent.NewContentStatusChangedHandler().Handle,
-	))
-	reg.Register(domaincontent.EventTypeContentStatusChanged, dedup.With(
-		dedupRepo,
-		"publish_content_status_changed_realtime",
-		publishContentRealtime.OnStatusChanged,
 	))
 	reg.Register(domaincontent.EventTypeContentVerdictRendered, dedup.With(
 		dedupRepo,
