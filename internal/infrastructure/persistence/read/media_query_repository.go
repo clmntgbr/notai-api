@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"time"
 
 	domainmedia "go-api/internal/domain/media"
@@ -186,6 +187,11 @@ func (r *mediaReadRepository) CountStatsByClientID(
 		return nil, err
 	}
 
+	kpis, err := r.countDashboardKPIsByClientID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &domainmedia.MediaStats{
 		PendingUpload:   row.PendingUpload,
 		Uploaded:        row.Uploaded,
@@ -196,7 +202,124 @@ func (r *mediaReadRepository) CountStatsByClientID(
 		AIGenerated:     row.AIGenerated,
 		Uncertain:       row.Uncertain,
 		MonthlyControls: monthly,
+		KPIs:            *kpis,
 	}, nil
+}
+
+func (r *mediaReadRepository) countDashboardKPIsByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) (*domainmedia.MediaDashboardKPIs, error) {
+	now := time.Now().UTC()
+	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	prevStart := thisStart.AddDate(0, -1, 0)
+	nextStart := thisStart.AddDate(0, 1, 0)
+
+	var row struct {
+		ThisVerifications int64
+		ThisHuman         int64
+		ThisAIGenerated   int64
+		ThisUncertain     int64
+		PrevVerifications int64
+		PrevHuman         int64
+		PrevAIGenerated   int64
+		PrevUncertain     int64
+	}
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+			) AS this_verifications,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND verdict->>'label' = 'human'
+			) AS this_human,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND verdict->>'label' = 'ai_generated'
+			) AS this_ai_generated,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND verdict->>'label' = 'uncertain'
+			) AS this_uncertain,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+			) AS prev_verifications,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND verdict->>'label' = 'human'
+			) AS prev_human,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND verdict->>'label' = 'ai_generated'
+			) AS prev_ai_generated,
+			COUNT(*) FILTER (
+				WHERE status = 'analyzed'
+				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND verdict->>'label' = 'uncertain'
+			) AS prev_uncertain
+		FROM media
+		WHERE client_id = @clientID
+	`, map[string]any{
+		"clientID":  clientID,
+		"thisStart": thisStart,
+		"prevStart": prevStart,
+		"nextStart": nextStart,
+	}).Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+
+	thisAuth := ratePercent(row.ThisHuman, row.ThisVerifications)
+	prevAuth := ratePercent(row.PrevHuman, row.PrevVerifications)
+
+	return &domainmedia.MediaDashboardKPIs{
+		Month:                      thisStart.Format("2006-01"),
+		Verifications:              row.ThisVerifications,
+		VerificationsChangePercent: percentChange(row.ThisVerifications, row.PrevVerifications),
+		PlanIncluded:               nil,
+		AuthenticityRatePercent:    thisAuth,
+		AuthenticityChangePoints:   pointsChange(thisAuth, prevAuth, row.PrevVerifications),
+		ValidatedCount:             row.ThisHuman,
+		ToReviewCount:              row.ThisUncertain,
+		ToReviewChangePercent:      percentChange(row.ThisUncertain, row.PrevUncertain),
+		AIGeneratedCount:           row.ThisAIGenerated,
+		AIGeneratedSharePercent:    ratePercent(row.ThisAIGenerated, row.ThisVerifications),
+	}, nil
+}
+
+func percentChange(current, previous int64) *float64 {
+	if previous == 0 {
+		return nil
+	}
+	v := round1(float64(current-previous) / float64(previous) * 100)
+	return &v
+}
+
+func ratePercent(part, total int64) float64 {
+	if total == 0 {
+		return 0
+	}
+	return round1(float64(part) / float64(total) * 100)
+}
+
+func pointsChange(currentRate, previousRate float64, previousTotal int64) *float64 {
+	if previousTotal == 0 {
+		return nil
+	}
+	v := round1(currentRate - previousRate)
+	return &v
+}
+
+func round1(v float64) float64 {
+	return math.Round(v*10) / 10
 }
 
 func (r *mediaReadRepository) countMonthlyControlsByClientID(

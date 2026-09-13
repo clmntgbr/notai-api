@@ -449,6 +449,9 @@ func TestMediaHandler_GetThumbnail_Success(t *testing.T) {
 }
 
 func TestMediaHandler_Stats_Success(t *testing.T) {
+	verificationsChange := 18.4
+	authChange := 4.2
+	toReviewChange := -12.0
 	stats := &mockMediaStatsHandler{
 		stats: &domainmedia.MediaStats{
 			PendingUpload: 1,
@@ -462,6 +465,18 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 			MonthlyControls: []domainmedia.MediaMonthlyStats{
 				{Month: "2026-04", Analyzed: 1, Human: 1},
 				{Month: "2026-09", Analyzed: 3, AIGenerated: 2, Uncertain: 1},
+			},
+			KPIs: domainmedia.MediaDashboardKPIs{
+				Month:                      "2026-09",
+				Verifications:              478,
+				VerificationsChangePercent: &verificationsChange,
+				AuthenticityRatePercent:    88.1,
+				AuthenticityChangePoints:   &authChange,
+				ValidatedCount:             421,
+				ToReviewCount:              38,
+				ToReviewChangePercent:      &toReviewChange,
+				AIGeneratedCount:           19,
+				AIGeneratedSharePercent:    4.0,
 			},
 		},
 	}
@@ -489,6 +504,22 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 	monthly, ok := body["monthlyControls"].([]any)
 	if !ok || len(monthly) != 2 {
 		t.Fatalf("monthlyControls: %#v", body["monthlyControls"])
+	}
+	kpis, ok := body["kpis"].(map[string]any)
+	if !ok {
+		t.Fatalf("kpis: %#v", body["kpis"])
+	}
+	if kpis["verifications"] != float64(478) ||
+		kpis["verificationsChangePercent"] != 18.4 ||
+		kpis["authenticityRatePercent"] != 88.1 ||
+		kpis["authenticityChangePoints"] != 4.2 ||
+		kpis["validatedCount"] != float64(421) ||
+		kpis["toReviewCount"] != float64(38) ||
+		kpis["toReviewChangePercent"] != -12.0 ||
+		kpis["aiGeneratedCount"] != float64(19) ||
+		kpis["aiGeneratedSharePercent"] != 4.0 ||
+		kpis["planIncluded"] != nil {
+		t.Fatalf("kpis: %#v", kpis)
 	}
 }
 

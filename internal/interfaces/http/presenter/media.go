@@ -209,6 +209,21 @@ type MediaStatsResponse struct {
 	AIGenerated     int64                          `json:"aiGenerated"`
 	Uncertain       int64                          `json:"uncertain"`
 	MonthlyControls []MediaMonthlyControlsResponse `json:"monthlyControls"`
+	KPIs            MediaDashboardKPIsResponse     `json:"kpis"`
+}
+
+type MediaDashboardKPIsResponse struct {
+	Month                      string   `json:"month"`
+	Verifications              int64    `json:"verifications"`
+	VerificationsChangePercent *float64 `json:"verificationsChangePercent"`
+	PlanIncluded               *int64   `json:"planIncluded"`
+	AuthenticityRatePercent    float64  `json:"authenticityRatePercent"`
+	AuthenticityChangePoints   *float64 `json:"authenticityChangePoints"`
+	ValidatedCount             int64    `json:"validatedCount"`
+	ToReviewCount              int64    `json:"toReviewCount"`
+	ToReviewChangePercent      *float64 `json:"toReviewChangePercent"`
+	AIGeneratedCount           int64    `json:"aiGeneratedCount"`
+	AIGeneratedSharePercent    float64  `json:"aiGeneratedSharePercent"`
 }
 
 type MediaMonthlyControlsResponse struct {
@@ -225,7 +240,10 @@ type MediaMonthlyControlsResponse struct {
 
 func NewMediaStatsResponse(stats *domainmedia.MediaStats) MediaStatsResponse {
 	if stats == nil {
-		return MediaStatsResponse{MonthlyControls: make([]MediaMonthlyControlsResponse, 0)}
+		return MediaStatsResponse{
+			MonthlyControls: make([]MediaMonthlyControlsResponse, 0),
+			KPIs:            MediaDashboardKPIsResponse{},
+		}
 	}
 	monthly := make([]MediaMonthlyControlsResponse, 0, len(stats.MonthlyControls))
 	for _, m := range stats.MonthlyControls {
@@ -251,5 +269,18 @@ func NewMediaStatsResponse(stats *domainmedia.MediaStats) MediaStatsResponse {
 		AIGenerated:     stats.AIGenerated,
 		Uncertain:       stats.Uncertain,
 		MonthlyControls: monthly,
+		KPIs: MediaDashboardKPIsResponse{
+			Month:                      stats.KPIs.Month,
+			Verifications:              stats.KPIs.Verifications,
+			VerificationsChangePercent: stats.KPIs.VerificationsChangePercent,
+			PlanIncluded:               stats.KPIs.PlanIncluded,
+			AuthenticityRatePercent:    stats.KPIs.AuthenticityRatePercent,
+			AuthenticityChangePoints:   stats.KPIs.AuthenticityChangePoints,
+			ValidatedCount:             stats.KPIs.ValidatedCount,
+			ToReviewCount:              stats.KPIs.ToReviewCount,
+			ToReviewChangePercent:      stats.KPIs.ToReviewChangePercent,
+			AIGeneratedCount:           stats.KPIs.AIGeneratedCount,
+			AIGeneratedSharePercent:    stats.KPIs.AIGeneratedSharePercent,
+		},
 	}
 }

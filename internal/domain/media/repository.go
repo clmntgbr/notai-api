@@ -38,6 +38,25 @@ type MediaStats struct {
 	AIGenerated     int64
 	Uncertain       int64
 	MonthlyControls []MediaMonthlyStats
+	KPIs            MediaDashboardKPIs
+}
+
+// MediaDashboardKPIs are the agency home cards (current UTC month vs previous).
+type MediaDashboardKPIs struct {
+	Month string
+
+	Verifications              int64
+	VerificationsChangePercent *float64 // nil when previous month had 0
+	PlanIncluded               *int64   // nil until billing plans exist
+
+	AuthenticityRatePercent  float64
+	AuthenticityChangePoints *float64 // nil when previous month had 0 verifications
+	ValidatedCount           int64    // human-labeled this month
+
+	ToReviewCount           int64
+	ToReviewChangePercent   *float64
+	AIGeneratedCount        int64
+	AIGeneratedSharePercent float64 // share of this month's verifications
 }
 
 type MediaMonthlyStats struct {
