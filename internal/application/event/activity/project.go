@@ -96,19 +96,27 @@ func (p *Projector) OnMediaVerdictRendered(ctx context.Context, payload []byte) 
 	}
 
 	if domainmedia.Status(evt.Status) == domainmedia.StatusFailed {
+		message := fmt.Sprintf("“%s” failed during processing", filename)
+		if evt.Reason != "" {
+			message = fmt.Sprintf("“%s” failed: %s", filename, evt.Reason)
+		}
+		payload := map[string]any{
+			"mediaId":    evt.MediaID,
+			"campaignId": evt.CampaignID,
+			"filename":   filename,
+			"status":     evt.Status,
+		}
+		if evt.Reason != "" {
+			payload["reason"] = evt.Reason
+		}
 		return p.insert(ctx, &domainactivity.Event{
-			ID:        eventID,
-			ClientID:  clientID,
-			Type:      domainactivity.TypeMediaFailed,
-			ActorType: domainactivity.ActorTypeSystem,
-			ActorName: domainactivity.ActorNameSystem,
-			Message:   fmt.Sprintf("“%s” failed during processing", filename),
-			Payload: map[string]any{
-				"mediaId":    evt.MediaID,
-				"campaignId": evt.CampaignID,
-				"filename":   filename,
-				"status":     evt.Status,
-			},
+			ID:         eventID,
+			ClientID:   clientID,
+			Type:       domainactivity.TypeMediaFailed,
+			ActorType:  domainactivity.ActorTypeSystem,
+			ActorName:  domainactivity.ActorNameSystem,
+			Message:    message,
+			Payload:    payload,
 			OccurredAt: evt.Timestamp,
 		})
 	}

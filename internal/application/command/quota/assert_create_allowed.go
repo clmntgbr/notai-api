@@ -11,12 +11,12 @@ import (
 )
 
 var (
-	ErrMemberQuotaExceeded       = errors.New("member quota exceeded for your current plan")
-	ErrCampaignQuotaExceeded     = errors.New("campaign quota exceeded for your current plan")
-	ErrVerificationQuotaExceeded = errors.New("verification quota exceeded for your current plan")
-	ErrConcurrentQuotaExceeded   = errors.New("concurrent analysis quota exceeded for your current plan")
-	ErrFileSizeQuotaExceeded     = errors.New("file size exceeds the maximum allowed for your current plan")
-	ErrVideoAnalysisNotAllowed   = errors.New("video analysis is not available on your current plan")
+	ErrMemberQuotaExceeded       = errors.New("Member quota exceeded for your current plan")
+	ErrCampaignQuotaExceeded     = errors.New("Campaign quota exceeded for your current plan")
+	ErrVerificationQuotaExceeded = errors.New("Verification quota exceeded for your current plan")
+	ErrConcurrentQuotaExceeded   = errors.New("Concurrent analysis quota exceeded for your current plan")
+	ErrFileSizeQuotaExceeded     = errors.New("File size exceeds the maximum allowed for your current plan")
+	ErrVideoAnalysisNotAllowed   = errors.New("Video analysis is not available on your current plan")
 )
 
 type AssertCreateAllowedHandler struct {

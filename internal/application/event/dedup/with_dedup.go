@@ -20,7 +20,7 @@ type processedEventReleaser interface {
 }
 
 // With wraps a handler so each (eventId, handlerName) is processed at most once.
-// Mark happens before next; on retryable failure the mark is released so the event can retry.
+// Mark happens before next; on retryable/deferred failure the mark is released so the event can retry.
 func With(repo port.ProcessedEventRepository, handlerName string, next registry.EventHandler) registry.EventHandler {
 	return func(ctx context.Context, payload []byte) error {
 		var meta eventIDPayload
@@ -41,7 +41,8 @@ func With(repo port.ProcessedEventRepository, handlerName string, next registry.
 
 		if err := next(ctx, payload); err != nil {
 			var retryable *messaging.RetryableError
-			if errors.As(err, &retryable) {
+			var deferred *messaging.DeferredError
+			if errors.As(err, &retryable) || errors.As(err, &deferred) {
 				if releaser, ok := repo.(processedEventReleaser); ok {
 					_ = releaser.UnmarkProcessed(ctx, meta.EventID, handlerName)
 				}

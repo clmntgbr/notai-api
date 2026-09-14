@@ -72,19 +72,20 @@ type MediaMonthlyStats struct {
 }
 
 type MediaView struct {
-	ID          uuid.UUID
-	CampaignID  uuid.UUID
-	ClientID    uuid.UUID
-	Filename    string
-	ContentType string
-	MediaType   MediaType
-	ObjectKey   string
-	SizeBytes   *int64
-	Status      Status
-	Verdict     *Verdict
-	AnalyzedAt  *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID            uuid.UUID
+	CampaignID    uuid.UUID
+	ClientID      uuid.UUID
+	Filename      string
+	ContentType   string
+	MediaType     MediaType
+	ObjectKey     string
+	SizeBytes     *int64
+	Status        Status
+	Verdict       *Verdict
+	FailureReason string
+	AnalyzedAt    *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // ContentChildView is a nested content row for media detail drill-down.

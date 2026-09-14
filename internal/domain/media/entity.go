@@ -63,19 +63,20 @@ type Verdict struct {
 }
 
 type Media struct {
-	ID          uuid.UUID
-	CampaignID  uuid.UUID
-	ClientID    uuid.UUID
-	Filename    string
-	ContentType string
-	MediaType   MediaType
-	ObjectKey   string
-	SizeBytes   *int64
-	Status      Status
-	Verdict     *Verdict
-	AnalyzedAt  *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID            uuid.UUID
+	CampaignID    uuid.UUID
+	ClientID      uuid.UUID
+	Filename      string
+	ContentType   string
+	MediaType     MediaType
+	ObjectKey     string
+	SizeBytes     *int64
+	Status        Status
+	Verdict       *Verdict
+	FailureReason string
+	AnalyzedAt    *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 
 	events []event.DomainEvent
 }
@@ -309,6 +310,7 @@ func (m *Media) MarkFailed(reason string) error {
 	}
 	now := time.Now().UTC()
 	m.Status = StatusFailed
+	m.FailureReason = strings.TrimSpace(reason)
 	m.UpdatedAt = now
 	// Terminal outcome — same realtime contract as a successful verdict (media.verdict_rendered).
 	m.recordEvent(MediaVerdictRendered{
@@ -317,9 +319,9 @@ func (m *Media) MarkFailed(reason string) error {
 		CampaignID: m.CampaignID.String(),
 		ClientID:   m.ClientID.String(),
 		Status:     string(StatusFailed),
+		Reason:     m.FailureReason,
 		Timestamp:  now,
 	})
-	_ = reason
 	return nil
 }
 

@@ -35,6 +35,10 @@ func (h *AnalyzeOnUploadedHandler) Handle(ctx context.Context, payload []byte) e
 
 	log.Printf("content analysis started content_id=%s", contentID)
 	if err := h.analyze.Handle(ctx, contentcmd.AnalyzeContentCommand{ContentID: contentID}); err != nil {
+		if errors.Is(err, cmdquota.ErrConcurrentQuotaExceeded) {
+			// Wait for a free analysis slot — do not burn retries / DLQ / fail the media.
+			return messaging.Deferred(err)
+		}
 		if errors.Is(err, cmdquota.ErrVerificationQuotaExceeded) ||
 			errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed) ||
 			errors.Is(err, cmdquota.ErrFileSizeQuotaExceeded) {

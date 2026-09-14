@@ -92,6 +92,19 @@ func (c *Consumer) handleDelivery(ctx context.Context, m amqp.Delivery) {
 		return
 	}
 
+	var deferred *messaging.DeferredError
+	if errors.As(err, &deferred) {
+		log.Printf(
+			"deferred failure type=%s eventId=%s err=%v → retry queue (no DLQ)",
+			envelope.Type,
+			envelope.EventID,
+			err,
+		)
+		// Soft back-pressure: always requeue via retry TTL, never burn the retry budget.
+		_ = m.Nack(false, false)
+		return
+	}
+
 	var nonRetryable *messaging.NonRetryableError
 	attempts := retryCount(m)
 	if errors.As(err, &nonRetryable) || attempts >= c.maxRetries {

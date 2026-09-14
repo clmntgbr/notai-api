@@ -16,19 +16,20 @@ import (
 )
 
 type mediaRow struct {
-	ID          uuid.UUID
-	CampaignID  uuid.UUID
-	ClientID    uuid.UUID
-	Filename    string
-	ContentType string
-	MediaType   string
-	ObjectKey   string
-	SizeBytes   *int64
-	Status      string
-	Verdict     dbtype.JSONB
-	AnalyzedAt  *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID            uuid.UUID
+	CampaignID    uuid.UUID
+	ClientID      uuid.UUID
+	Filename      string
+	ContentType   string
+	MediaType     string
+	ObjectKey     string
+	SizeBytes     *int64
+	Status        string
+	Verdict       dbtype.JSONB
+	FailureReason *string
+	AnalyzedAt    *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 func (mediaRow) TableName() string { return "media" }
@@ -42,7 +43,7 @@ func NewMediaReadRepository(db *gorm.DB) domainmedia.MediaReadRepository {
 }
 
 const mediaSelectCols = "id, campaign_id, client_id, filename, content_type, media_type, object_key, " +
-	"size_bytes, status, verdict, analyzed_at, created_at, updated_at"
+	"size_bytes, status, verdict, failure_reason, analyzed_at, created_at, updated_at"
 
 func (r *mediaReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*domainmedia.MediaView, error) {
 	var row mediaRow
@@ -411,19 +412,24 @@ func toMediaView(row mediaRow) *domainmedia.MediaView {
 			verdict = &v
 		}
 	}
+	failureReason := ""
+	if row.FailureReason != nil {
+		failureReason = *row.FailureReason
+	}
 	return &domainmedia.MediaView{
-		ID:          row.ID,
-		CampaignID:  row.CampaignID,
-		ClientID:    row.ClientID,
-		Filename:    row.Filename,
-		ContentType: row.ContentType,
-		MediaType:   domainmedia.MediaType(row.MediaType),
-		ObjectKey:   row.ObjectKey,
-		SizeBytes:   row.SizeBytes,
-		Status:      domainmedia.Status(row.Status),
-		Verdict:     verdict,
-		AnalyzedAt:  row.AnalyzedAt,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ID:            row.ID,
+		CampaignID:    row.CampaignID,
+		ClientID:      row.ClientID,
+		Filename:      row.Filename,
+		ContentType:   row.ContentType,
+		MediaType:     domainmedia.MediaType(row.MediaType),
+		ObjectKey:     row.ObjectKey,
+		SizeBytes:     row.SizeBytes,
+		Status:        domainmedia.Status(row.Status),
+		Verdict:       verdict,
+		FailureReason: failureReason,
+		AnalyzedAt:    row.AnalyzedAt,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	}
 }

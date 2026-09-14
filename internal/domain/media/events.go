@@ -83,6 +83,7 @@ type MediaVerdictRendered struct {
 	TotalCount   int       `json:"totalCount"`
 	FailedCount  int       `json:"failedCount"`
 	Status       string    `json:"status"`
+	Reason       string    `json:"reason,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
 }
 

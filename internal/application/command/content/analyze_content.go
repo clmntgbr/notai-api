@@ -83,14 +83,9 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 			}
 			if media != nil {
 				if err := h.quota.AssertAnalyze(ctx, media.ClientID); err != nil {
-					if errors.Is(err, cmdquota.ErrVerificationQuotaExceeded) {
-						if markErr := content.MarkFailed(); markErr == nil {
-							_ = h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
-								if err := h.contentRepo.Update(txCtx, content); err != nil {
-									return err
-								}
-								return h.outbox.StoreEvents(txCtx, content.PullEvents())
-							})
+					if isHardAnalysisQuotaError(err) {
+						if failErr := h.failQuotaBlockedAnalysis(ctx, content, media, err); failErr != nil {
+							return failErr
 						}
 					}
 					return err
@@ -191,6 +186,48 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 	}
 
 	return h.tryFinalizeMedia(ctx, content.MediaID)
+}
+
+func isHardAnalysisQuotaError(err error) bool {
+	return errors.Is(err, cmdquota.ErrVerificationQuotaExceeded) ||
+		errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed) ||
+		errors.Is(err, cmdquota.ErrFileSizeQuotaExceeded)
+}
+
+func (h *AnalyzeContentHandler) failQuotaBlockedAnalysis(
+	ctx context.Context,
+	content *domaincontent.Content,
+	media *domainmedia.Media,
+	quotaErr error,
+) error {
+	reason := quotaErr.Error()
+	if err := content.MarkFailed(); err != nil {
+		return err
+	}
+
+	return h.mediaRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+		if err := h.contentRepo.Update(txCtx, content); err != nil {
+			return err
+		}
+		events := content.PullEvents()
+
+		fresh, err := h.mediaRepo.GetByID(txCtx, media.ID)
+		if err != nil {
+			return err
+		}
+		if fresh != nil &&
+			fresh.Status != domainmedia.StatusAnalyzed &&
+			fresh.Status != domainmedia.StatusFailed {
+			if err := fresh.MarkFailed(reason); err != nil {
+				return err
+			}
+			if err := h.mediaRepo.Update(txCtx, fresh); err != nil {
+				return err
+			}
+			events = append(events, fresh.PullEvents()...)
+		}
+		return h.outbox.StoreEvents(txCtx, events)
+	})
 }
 
 func (h *AnalyzeContentHandler) tryFinalizeMedia(ctx context.Context, mediaID uuid.UUID) error {

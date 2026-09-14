@@ -19,17 +19,18 @@ type MediaVerdictResponse struct {
 }
 
 type MediaListItemResponse struct {
-	ID           string                 `json:"id"`
-	CampaignID   string                 `json:"campaignId"`
-	Filename     string                 `json:"filename"`
-	MediaType    string                 `json:"mediaType"`
-	Status       string                 `json:"status"`
-	Verdict      *MediaVerdictResponse  `json:"verdict,omitempty"`
-	ThumbnailURL *string                `json:"thumbnailUrl,omitempty"`
-	Campaign     *MediaCampaignResponse `json:"campaign,omitempty"`
-	CreatedAt    time.Time              `json:"createdAt"`
-	UpdatedAt    time.Time              `json:"updatedAt"`
-	AnalyzedAt   *time.Time             `json:"analyzedAt,omitempty"`
+	ID            string                 `json:"id"`
+	CampaignID    string                 `json:"campaignId"`
+	Filename      string                 `json:"filename"`
+	MediaType     string                 `json:"mediaType"`
+	Status        string                 `json:"status"`
+	FailureReason string                 `json:"failureReason,omitempty"`
+	Verdict       *MediaVerdictResponse  `json:"verdict,omitempty"`
+	ThumbnailURL  *string                `json:"thumbnailUrl,omitempty"`
+	Campaign      *MediaCampaignResponse `json:"campaign,omitempty"`
+	CreatedAt     time.Time              `json:"createdAt"`
+	UpdatedAt     time.Time              `json:"updatedAt"`
+	AnalyzedAt    *time.Time             `json:"analyzedAt,omitempty"`
 }
 
 type MediaCampaignResponse struct {
@@ -81,22 +82,23 @@ type MediaContentSignalResponse struct {
 }
 
 type MediaDetailResponse struct {
-	ID           string                      `json:"id"`
-	CampaignID   string                      `json:"campaignId"`
-	ClientID     string                      `json:"clientId"`
-	Filename     string                      `json:"filename"`
-	ContentType  string                      `json:"contentType"`
-	MediaType    string                      `json:"mediaType"`
-	ObjectKey    string                      `json:"objectKey"`
-	SizeBytes    *int64                      `json:"sizeBytes,omitempty"`
-	Status       string                      `json:"status"`
-	Verdict      *MediaVerdictResponse       `json:"verdict,omitempty"`
-	ThumbnailURL *string                     `json:"thumbnailUrl,omitempty"`
-	Campaign     *MediaCampaignResponse      `json:"campaign,omitempty"`
-	Contents     []MediaContentChildResponse `json:"contents"`
-	CreatedAt    time.Time                   `json:"createdAt"`
-	UpdatedAt    time.Time                   `json:"updatedAt"`
-	AnalyzedAt   *time.Time                  `json:"analyzedAt,omitempty"`
+	ID            string                      `json:"id"`
+	CampaignID    string                      `json:"campaignId"`
+	ClientID      string                      `json:"clientId"`
+	Filename      string                      `json:"filename"`
+	ContentType   string                      `json:"contentType"`
+	MediaType     string                      `json:"mediaType"`
+	ObjectKey     string                      `json:"objectKey"`
+	SizeBytes     *int64                      `json:"sizeBytes,omitempty"`
+	Status        string                      `json:"status"`
+	FailureReason string                      `json:"failureReason,omitempty"`
+	Verdict       *MediaVerdictResponse       `json:"verdict,omitempty"`
+	ThumbnailURL  *string                     `json:"thumbnailUrl,omitempty"`
+	Campaign      *MediaCampaignResponse      `json:"campaign,omitempty"`
+	Contents      []MediaContentChildResponse `json:"contents"`
+	CreatedAt     time.Time                   `json:"createdAt"`
+	UpdatedAt     time.Time                   `json:"updatedAt"`
+	AnalyzedAt    *time.Time                  `json:"analyzedAt,omitempty"`
 }
 
 type PresignMediaResponse struct {
@@ -136,14 +138,15 @@ func NewMediaListResponseFromViews(
 	out := make([]MediaListItemResponse, 0, len(views))
 	for _, v := range views {
 		item := MediaListItemResponse{
-			ID:         v.ID.String(),
-			CampaignID: v.CampaignID.String(),
-			Filename:   v.Filename,
-			MediaType:  string(v.MediaType),
-			Status:     string(v.Status),
-			CreatedAt:  v.CreatedAt,
-			UpdatedAt:  v.UpdatedAt,
-			AnalyzedAt: v.AnalyzedAt,
+			ID:            v.ID.String(),
+			CampaignID:    v.CampaignID.String(),
+			Filename:      v.Filename,
+			MediaType:     string(v.MediaType),
+			Status:        string(v.Status),
+			FailureReason: v.FailureReason,
+			CreatedAt:     v.CreatedAt,
+			UpdatedAt:     v.UpdatedAt,
+			AnalyzedAt:    v.AnalyzedAt,
 		}
 		if v.Verdict != nil {
 			item.Verdict = &MediaVerdictResponse{
@@ -187,20 +190,21 @@ func mediaCampaignResponse(campaign *domaincampaign.CampaignView) *MediaCampaign
 func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailResponse {
 	v := result.Media
 	resp := MediaDetailResponse{
-		ID:          v.ID.String(),
-		CampaignID:  v.CampaignID.String(),
-		ClientID:    v.ClientID.String(),
-		Filename:    v.Filename,
-		ContentType: v.ContentType,
-		MediaType:   string(v.MediaType),
-		ObjectKey:   v.ObjectKey,
-		SizeBytes:   v.SizeBytes,
-		Status:      string(v.Status),
-		Campaign:    mediaCampaignResponse(result.Campaign),
-		Contents:    make([]MediaContentChildResponse, 0, len(result.Contents)),
-		CreatedAt:   v.CreatedAt,
-		UpdatedAt:   v.UpdatedAt,
-		AnalyzedAt:  v.AnalyzedAt,
+		ID:            v.ID.String(),
+		CampaignID:    v.CampaignID.String(),
+		ClientID:      v.ClientID.String(),
+		Filename:      v.Filename,
+		ContentType:   v.ContentType,
+		MediaType:     string(v.MediaType),
+		ObjectKey:     v.ObjectKey,
+		SizeBytes:     v.SizeBytes,
+		Status:        string(v.Status),
+		FailureReason: v.FailureReason,
+		Campaign:      mediaCampaignResponse(result.Campaign),
+		Contents:      make([]MediaContentChildResponse, 0, len(result.Contents)),
+		CreatedAt:     v.CreatedAt,
+		UpdatedAt:     v.UpdatedAt,
+		AnalyzedAt:    v.AnalyzedAt,
 	}
 	if v.Verdict != nil {
 		resp.Verdict = &MediaVerdictResponse{
