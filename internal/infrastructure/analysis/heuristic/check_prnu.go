@@ -15,5 +15,7 @@ func (PRNUCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]domai
 	_ = ctx
 	_ = in
 	_ = p
-	return nil, nil
+	return []domaincontent.Signal{
+		skippedSignal("prnu", "PRNU runtime not wired"),
+	}, nil
 }

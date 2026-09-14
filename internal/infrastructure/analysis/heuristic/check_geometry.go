@@ -15,5 +15,7 @@ func (GeometryCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]d
 	_ = ctx
 	_ = in
 	_ = p
-	return nil, nil
+	return []domaincontent.Signal{
+		skippedSignal("geometry", "Geometry/landmark runtime not wired"),
+	}, nil
 }

@@ -14,10 +14,18 @@ func (PatchNoiseCheck) Name() string { return "patch_noise" }
 func (PatchNoiseCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]domaincontent.Signal, error) {
 	_ = ctx
 	if in.Img == nil {
-		return nil, nil
+		return []domaincontent.Signal{
+			skippedSignal("patch_noise", "No decoded image available"),
+		}, nil
 	}
 	if err := ensureMinSize(in.Img, 64); err != nil {
-		return nil, err
+		b := in.Img.Bounds()
+		return []domaincontent.Signal{
+			skippedSignal("patch_noise", fmt.Sprintf(
+				"Image too small for patch analysis (%dx%d, min 64)",
+				b.Dx(), b.Dy(),
+			)),
+		}, nil
 	}
 
 	grid := p.IntParam("patch_grid_size")
@@ -28,7 +36,9 @@ func (PatchNoiseCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([
 	pw := bounds.Dx() / grid
 	ph := bounds.Dy() / grid
 	if pw < 4 || ph < 4 {
-		return nil, nil
+		return []domaincontent.Signal{
+			skippedSignal("patch_noise", "Image too small for patch grid"),
+		}, nil
 	}
 
 	variances := make([]float64, 0, grid*grid)
@@ -72,5 +82,11 @@ func (PatchNoiseCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([
 			Weight: p.WeightFor("patch_noise_inconsistent"),
 		}}, nil
 	}
-	return nil, nil
+	return []domaincontent.Signal{
+		okSignal("patch_noise", fmt.Sprintf(
+			"Patch sharpness consistent across regions (%d outliers, max %d)",
+			outliers,
+			maxOutliers,
+		)),
+	}, nil
 }

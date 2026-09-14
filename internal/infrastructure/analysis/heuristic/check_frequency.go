@@ -14,10 +14,18 @@ func (FrequencyCheck) Name() string { return "frequency" }
 func (FrequencyCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]domaincontent.Signal, error) {
 	_ = ctx
 	if in.Img == nil {
-		return nil, nil
+		return []domaincontent.Signal{
+			skippedSignal("frequency", "No decoded image available"),
+		}, nil
 	}
 	if err := ensureMinSize(in.Img, 32); err != nil {
-		return nil, err
+		b := in.Img.Bounds()
+		return []domaincontent.Signal{
+			skippedSignal("frequency", fmt.Sprintf(
+				"Image too small for spectral analysis (%dx%d, min 32)",
+				b.Dx(), b.Dy(),
+			)),
+		}, nil
 	}
 
 	const size = 32
@@ -42,5 +50,10 @@ func (FrequencyCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]
 			Weight: p.WeightFor("frequency_artifact"),
 		}}, nil
 	}
-	return nil, nil
+	return []domaincontent.Signal{
+		okSignal("frequency", fmt.Sprintf(
+			"Frequency spectrum within normal range (score %.2f)",
+			score,
+		)),
+	}, nil
 }

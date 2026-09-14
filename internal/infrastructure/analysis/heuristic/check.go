@@ -23,3 +23,24 @@ type Check interface {
 	Name() string
 	Run(ctx context.Context, in CheckInput, params CheckParams) ([]domaincontent.Signal, error)
 }
+
+// okSignal reports that a check ran and found nothing suspicious.
+// Type "meta" + weight 0 keeps it out of verdict scoring.
+func okSignal(checkName, description string) domaincontent.Signal {
+	return domaincontent.Signal{
+		Type:        "meta",
+		Code:        checkName + "_ok",
+		Description: description,
+		Weight:      0,
+	}
+}
+
+// skippedSignal reports that a check could not apply (wrong format, missing deps, etc.).
+func skippedSignal(checkName, description string) domaincontent.Signal {
+	return domaincontent.Signal{
+		Type:        "meta",
+		Code:        checkName + "_skipped",
+		Description: description,
+		Weight:      0,
+	}
+}

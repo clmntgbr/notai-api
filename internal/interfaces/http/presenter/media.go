@@ -270,10 +270,6 @@ func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailRespons
 				Confidence: conf,
 				Signals:    aggregatedSignals,
 			}
-		} else if len(aggregatedSignals) > 0 {
-			child.Verdict = &MediaContentVerdictResponse{
-				Signals: aggregatedSignals,
-			}
 		}
 		resp.Contents = append(resp.Contents, child)
 	}

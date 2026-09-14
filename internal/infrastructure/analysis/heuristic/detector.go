@@ -103,18 +103,28 @@ func (d *Detector) Analyze(
 	}
 
 	var signals []domaincontent.Signal
-	for _, check := range d.checks {
+	for i, check := range d.checks {
 		params := ruleset.ParamsFor(check.Name())
 		if !params.Enabled {
+			signals = append(signals, skippedSignal(check.Name(), "Check disabled in active ruleset"))
 			continue
 		}
 		sigs, err := check.Run(ctx, in, params)
 		if err != nil {
 			log.Printf("heuristic check failed check=%s err=%v", check.Name(), err)
+			signals = append(signals, skippedSignal(check.Name(), "Check failed"))
 			continue
 		}
 		signals = append(signals, sigs...)
 		if ruleset.ShouldShortCircuit(signals) {
+			for _, remaining := range d.checks[i+1:] {
+				rp := ruleset.ParamsFor(remaining.Name())
+				if !rp.Enabled {
+					signals = append(signals, skippedSignal(remaining.Name(), "Check disabled in active ruleset"))
+					continue
+				}
+				signals = append(signals, skippedSignal(remaining.Name(), "Skipped after decisive finding"))
+			}
 			break
 		}
 	}

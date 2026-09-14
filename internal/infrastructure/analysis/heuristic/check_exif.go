@@ -33,8 +33,15 @@ func (ExifCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]domai
 				Weight:      p.WeightFor("exif_missing"),
 			}}, nil
 		}
+		return []domaincontent.Signal{
+			okSignal("exif", "EXIF metadata present; no generative Content Credentials"),
+		}, nil
 	default:
-		// PNG/WebP rarely carry camera EXIF; missing is weak signal only for JPEG.
+		return []domaincontent.Signal{
+			skippedSignal("exif", fmt.Sprintf(
+				"EXIF presence not scored for %s; no generative Content Credentials",
+				in.Format,
+			)),
+		}, nil
 	}
-	return nil, nil
 }

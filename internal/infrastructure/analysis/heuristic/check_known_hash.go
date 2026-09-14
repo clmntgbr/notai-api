@@ -21,8 +21,15 @@ func NewKnownHashCheck(repo KnownHashRepository) *KnownHashCheck {
 func (c *KnownHashCheck) Name() string { return "known_hash" }
 
 func (c *KnownHashCheck) Run(ctx context.Context, in CheckInput, p CheckParams) ([]domaincontent.Signal, error) {
-	if c.repo == nil || in.Img == nil {
-		return nil, nil
+	if c.repo == nil {
+		return []domaincontent.Signal{
+			skippedSignal("known_hash", "Known-hash repository not configured"),
+		}, nil
+	}
+	if in.Img == nil {
+		return []domaincontent.Signal{
+			skippedSignal("known_hash", "No decoded image available"),
+		}, nil
 	}
 
 	hash, err := goimagehash.PerceptionHash(toRGBA(in.Img))
@@ -39,7 +46,9 @@ func (c *KnownHashCheck) Run(ctx context.Context, in CheckInput, p CheckParams) 
 		return nil, err
 	}
 	if !found {
-		return nil, nil
+		return []domaincontent.Signal{
+			okSignal("known_hash", "No match in known AI corpus"),
+		}, nil
 	}
 
 	source := match.Source
