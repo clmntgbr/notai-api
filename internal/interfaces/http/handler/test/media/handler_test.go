@@ -11,6 +11,7 @@ import (
 	"time"
 
 	mediacmd "go-api/internal/application/command/media"
+	cmdquota "go-api/internal/application/command/quota"
 	querymedia "go-api/internal/application/query/media"
 	domaincampaign "go-api/internal/domain/campaign"
 	domainmedia "go-api/internal/domain/media"
@@ -216,6 +217,23 @@ func TestMediaHandler_Presign_DefaultCampaign(t *testing.T) {
 	}
 	if !presign.called || presign.cmd.CampaignID != uuid.Nil {
 		t.Fatalf("presign cmd: %+v", presign.cmd)
+	}
+}
+
+func TestMediaHandler_Presign_QuotaExceeded(t *testing.T) {
+	presign := &mockPresignMediaHandler{err: cmdquota.ErrVerificationQuotaExceeded}
+	h := newMediaHandler(presign, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/medias/presign", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Presign)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/medias/presign", map[string]any{
+		"files": []map[string]any{{"filename": "a.jpg", "contentType": "image/jpeg"}},
+	}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }
 

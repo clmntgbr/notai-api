@@ -26,6 +26,10 @@ type clientRemoveMemberHandler interface {
 	Handle(ctx context.Context, cmd clientcmd.RemoveClientMemberCommand) error
 }
 
+type clientAddMemberHandler interface {
+	Handle(ctx context.Context, cmd clientcmd.AddClientMemberCommand) error
+}
+
 type clientGetByIDHandler interface {
 	Handle(ctx context.Context, q queryclient.GetClientByIDQuery) (*domainclient.ClientView, error)
 }

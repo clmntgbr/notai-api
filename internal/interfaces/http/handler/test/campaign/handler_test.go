@@ -10,6 +10,7 @@ import (
 	"time"
 
 	campaigncmd "go-api/internal/application/command/campaign"
+	cmdquota "go-api/internal/application/command/quota"
 	querycampaign "go-api/internal/application/query/campaign"
 	queryclient "go-api/internal/application/query/client"
 	domaincampaign "go-api/internal/domain/campaign"
@@ -289,6 +290,21 @@ func TestCampaignHandler_Create_InvalidSchedule(t *testing.T) {
 		t.Fatalf("perform request: %v", err)
 	}
 	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestCampaignHandler_Create_QuotaExceeded(t *testing.T) {
+	create := &mockCreateCampaignHandler{err: cmdquota.ErrCampaignQuotaExceeded}
+	h := newCampaignHandler(create, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "Spring Launch"}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }

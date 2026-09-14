@@ -8,6 +8,7 @@ import (
 	domainclient "go-api/internal/domain/client"
 	"go-api/internal/domain/port"
 	domainuser "go-api/internal/domain/user"
+	domainworkspace "go-api/internal/domain/workspace"
 
 	"github.com/google/uuid"
 )
@@ -18,23 +19,26 @@ type CreateClientCommand struct {
 }
 
 type CreateClientHandler struct {
-	clientRepo   domainclient.ClientWriteRepository
-	campaignRepo domaincampaign.CampaignWriteRepository
-	userRepo     domainuser.UserWriteRepository
-	outbox       port.OutboxRepository
+	clientRepo    domainclient.ClientWriteRepository
+	workspaceRepo domainworkspace.WorkspaceWriteRepository
+	campaignRepo  domaincampaign.CampaignWriteRepository
+	userRepo      domainuser.UserWriteRepository
+	outbox        port.OutboxRepository
 }
 
 func NewCreateClientHandler(
 	clientRepo domainclient.ClientWriteRepository,
+	workspaceRepo domainworkspace.WorkspaceWriteRepository,
 	campaignRepo domaincampaign.CampaignWriteRepository,
 	userRepo domainuser.UserWriteRepository,
 	outbox port.OutboxRepository,
 ) *CreateClientHandler {
 	return &CreateClientHandler{
-		clientRepo:   clientRepo,
-		campaignRepo: campaignRepo,
-		userRepo:     userRepo,
-		outbox:       outbox,
+		clientRepo:    clientRepo,
+		workspaceRepo: workspaceRepo,
+		campaignRepo:  campaignRepo,
+		userRepo:      userRepo,
+		outbox:        outbox,
 	}
 }
 
@@ -49,10 +53,20 @@ func (h *CreateClientHandler) Handle(
 		return nil, errors.New("creator user is required")
 	}
 
-	client := domainclient.NewClient(cmd.Name, cmd.CreatorUserID)
-	client.AddMember(cmd.CreatorUserID)
+	var client *domainclient.Client
 
 	err := h.clientRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+		workspace, err := h.workspaceRepo.GetByOwnerUserID(txCtx, cmd.CreatorUserID)
+		if err != nil {
+			return errors.New("failed to get workspace")
+		}
+		if workspace == nil {
+			return errors.New("workspace not found")
+		}
+
+		client = domainclient.NewClient(cmd.Name, workspace.ID, cmd.CreatorUserID)
+		client.AddMember(cmd.CreatorUserID)
+
 		if err := h.clientRepo.Save(txCtx, client); err != nil {
 			return err
 		}
@@ -81,7 +95,8 @@ func (h *CreateClientHandler) Handle(
 	})
 	if err != nil {
 		if err.Error() == "creator user not found" || err.Error() == "failed to get creator user" ||
-			err.Error() == "failed to set current client" {
+			err.Error() == "failed to set current client" || err.Error() == "workspace not found" ||
+			err.Error() == "failed to get workspace" {
 			return nil, err
 		}
 		return nil, errors.New("failed to create client")

@@ -25,9 +25,10 @@ type ClientReadRepository interface {
 }
 
 type ClientView struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	MemberIDs []uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	WorkspaceID uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	MemberIDs   []uuid.UUID
 }

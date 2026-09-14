@@ -277,6 +277,20 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 		return nil, err
 	}
 
+	var planIncluded *int64
+	var included int64
+	err = r.db.WithContext(ctx).Raw(`
+		SELECT q.max_verifications_per_month
+		FROM clients c
+		JOIN subscriptions s ON s.id = c.subscription_id
+		JOIN plans p ON p.id = s.plan_id
+		JOIN quotas q ON q.id = p.quota_id
+		WHERE c.id = @clientID
+	`, map[string]any{"clientID": clientID}).Scan(&included).Error
+	if err == nil {
+		planIncluded = &included
+	}
+
 	thisAuth := ratePercent(row.ThisHuman, row.ThisVerifications)
 	prevAuth := ratePercent(row.PrevHuman, row.PrevVerifications)
 
@@ -284,7 +298,7 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 		Month:                      thisStart.Format("2006-01"),
 		Verifications:              row.ThisVerifications,
 		VerificationsChangePercent: percentChange(row.ThisVerifications, row.PrevVerifications),
-		PlanIncluded:               nil,
+		PlanIncluded:               planIncluded,
 		AuthenticityRatePercent:    thisAuth,
 		AuthenticityChangePoints:   pointsChange(thisAuth, prevAuth, row.PrevVerifications),
 		ValidatedCount:             row.ThisHuman,

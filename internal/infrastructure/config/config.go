@@ -54,6 +54,11 @@ type Config struct {
 	FrameExtractionQueue       string
 	FrameExtractionRoutingKey  string
 	FrameExtractionConcurrency int
+	StripeSecretKey            string
+	StripeWebhookSecret        string
+	RedirectSuccessURL         string
+	RedirectCancelURL          string
+	RedirectPortalURL          string
 }
 
 func Load() *Config {
@@ -77,7 +82,7 @@ func Load() *Config {
 		RabbitMQURL:                 getEnv("RABBITMQ_URL"),
 		RabbitMQExchange:            getEnvOrDefault("RABBITMQ_EXCHANGE", "domain.events"),
 		RabbitMQQueue:               getEnvOrDefault("RABBITMQ_QUEUE", "domain.events"),
-		RabbitMQRoutingKey:          getEnvOrDefault("RABBITMQ_ROUTING_KEY", "user.#,client.#,campaign.#,content.#,media.#"),
+		RabbitMQRoutingKey:          getEnvOrDefault("RABBITMQ_ROUTING_KEY", "user.#,client.#,campaign.#,content.#,media.#,subscription.#,invoice.#,quota.#,plan.#"),
 		RabbitMQRetryTTLMS:          getEnvIntOrDefault("RABBITMQ_RETRY_TTL_MS", 30000),
 		WorkerMaxRetries:            getEnvIntOrDefault("WORKER_MAX_RETRIES", 3),
 		OutboxPollInterval:          getEnvDuration("OUTBOX_POLL_INTERVAL", 2*time.Second),
@@ -105,6 +110,11 @@ func Load() *Config {
 		FrameExtractionQueue:       getEnvOrDefault("FRAME_EXTRACTION_QUEUE", "frame-extraction"),
 		FrameExtractionRoutingKey:  getEnvOrDefault("FRAME_EXTRACTION_ROUTING_KEY", "media.uploaded.v1"),
 		FrameExtractionConcurrency: getEnvIntOrDefault("FRAME_EXTRACTION_CONCURRENCY", 1),
+		StripeSecretKey:            getEnvOrDefault("STRIPE_SECRET_KEY", ""),
+		StripeWebhookSecret:        getEnvOrDefault("STRIPE_WEBHOOK_SECRET", ""),
+		RedirectSuccessURL:         getEnvOrDefault("REDIRECT_SUCCESS_URL", "http://localhost:3000/subscription/success"),
+		RedirectCancelURL:          getEnvOrDefault("REDIRECT_CANCEL_URL", "http://localhost:3000/subscription/failed"),
+		RedirectPortalURL:          getEnvOrDefault("REDIRECT_PORTAL_URL", "http://localhost:3000/subscription"),
 	}
 }
 

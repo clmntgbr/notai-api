@@ -4,8 +4,10 @@ import (
 	"log"
 
 	contentcmd "go-api/internal/application/command/content"
+	cmdquota "go-api/internal/application/command/quota"
 	eventcontent "go-api/internal/application/event/content"
 	"go-api/internal/application/event/dedup"
+	querysubscription "go-api/internal/application/query/subscription"
 	"go-api/internal/application/registry"
 	domaincontent "go-api/internal/domain/content"
 	"go-api/internal/infrastructure/analysis"
@@ -13,6 +15,7 @@ import (
 	"go-api/internal/infrastructure/messaging/rabbitmq"
 	"go-api/internal/infrastructure/persistence/outbox"
 	"go-api/internal/infrastructure/persistence/processed"
+	"go-api/internal/infrastructure/persistence/read"
 	"go-api/internal/infrastructure/persistence/write"
 	"go-api/internal/infrastructure/sightengine"
 	"go-api/internal/infrastructure/storage"
@@ -51,6 +54,21 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	outboxRepo := outbox.NewRepository(db)
 	dedupRepo := processed.NewRepository(db)
 
+	clientReadRepo := read.NewClientReadRepository(db)
+	workspaceReadRepo := read.NewWorkspaceReadRepository(db)
+	subscriptionReadRepo := read.NewSubscriptionReadRepository(db, read.NewPlanReadRepository(db, read.NewQuotaReadRepository(db)))
+	campaignReadRepo := read.NewCampaignReadRepository(db)
+	contentReadRepo := read.NewContentReadRepository(db)
+	getQuotaUsageHandler := querysubscription.NewGetQuotaUsageHandler(
+		clientReadRepo,
+		workspaceReadRepo,
+		subscriptionReadRepo,
+		read.NewPlanReadRepository(db, read.NewQuotaReadRepository(db)),
+		campaignReadRepo,
+		contentReadRepo,
+	)
+	assertCreateAllowedHandler := cmdquota.NewAssertCreateAllowedHandler(getQuotaUsageHandler)
+
 	detectors := analysis.BuildDetectors(env, minioStorage, db)
 	analyzeHandler := contentcmd.NewAnalyzeContentHandler(
 		contentRepo,
@@ -59,6 +77,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		outboxRepo,
 		detectors,
 		env.AnalysisMaxDetectors,
+		assertCreateAllowedHandler,
 	)
 
 	reg := registry.NewHandlerRegistry()

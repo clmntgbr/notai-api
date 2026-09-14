@@ -227,6 +227,35 @@ func (r *campaignReadRepository) attachContentCounts(
 	return nil
 }
 
+func (r *campaignReadRepository) CountNonDefaultByClientID(
+	ctx context.Context,
+	clientID uuid.UUID,
+) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&campaignRow{}).
+		Where("client_id = ?", clientID).
+		Where("is_default = false").
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
+func (r *campaignReadRepository) CountNonDefaultByWorkspaceID(
+	ctx context.Context,
+	workspaceID uuid.UUID,
+) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&campaignRow{}).
+		Joins("INNER JOIN clients ON clients.id = campaigns.client_id").
+		Where("clients.workspace_id = ?", workspaceID).
+		Where("campaigns.is_default = false").
+		Where("campaigns.deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
 func derefString(s *string) string {
 	if s == nil {
 		return ""

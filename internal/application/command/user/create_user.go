@@ -8,8 +8,11 @@ import (
 
 	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
+	domainplan "go-api/internal/domain/plan"
 	"go-api/internal/domain/port"
+	domainsubscription "go-api/internal/domain/subscription"
 	domainuser "go-api/internal/domain/user"
+	domainworkspace "go-api/internal/domain/workspace"
 )
 
 type CreateUserCommand struct {
@@ -21,23 +24,32 @@ type CreateUserCommand struct {
 }
 
 type CreateUserHandler struct {
-	userRepo     domainuser.UserWriteRepository
-	clientRepo   domainclient.ClientWriteRepository
-	campaignRepo domaincampaign.CampaignWriteRepository
-	outbox       port.OutboxRepository
+	userRepo         domainuser.UserWriteRepository
+	workspaceRepo    domainworkspace.WorkspaceWriteRepository
+	clientRepo       domainclient.ClientWriteRepository
+	campaignRepo     domaincampaign.CampaignWriteRepository
+	planRepo         domainplan.PlanWriteRepository
+	subscriptionRepo domainsubscription.SubscriptionWriteRepository
+	outbox           port.OutboxRepository
 }
 
 func NewCreateUserHandler(
 	userRepo domainuser.UserWriteRepository,
+	workspaceRepo domainworkspace.WorkspaceWriteRepository,
 	clientRepo domainclient.ClientWriteRepository,
 	campaignRepo domaincampaign.CampaignWriteRepository,
+	planRepo domainplan.PlanWriteRepository,
+	subscriptionRepo domainsubscription.SubscriptionWriteRepository,
 	outbox port.OutboxRepository,
 ) *CreateUserHandler {
 	return &CreateUserHandler{
-		userRepo:     userRepo,
-		clientRepo:   clientRepo,
-		campaignRepo: campaignRepo,
-		outbox:       outbox,
+		userRepo:         userRepo,
+		workspaceRepo:    workspaceRepo,
+		clientRepo:       clientRepo,
+		campaignRepo:     campaignRepo,
+		planRepo:         planRepo,
+		subscriptionRepo: subscriptionRepo,
+		outbox:           outbox,
 	}
 }
 
@@ -49,8 +61,26 @@ func (h *CreateUserHandler) Handle(ctx context.Context, cmd CreateUserCommand) (
 			return err
 		}
 
-		client := domainclient.NewClient(personalClientName(cmd.FirstName, cmd.LastName), u.ID)
+		workspaceName := personalWorkspaceName(cmd.FirstName, cmd.LastName)
+		workspace := domainworkspace.NewWorkspace(workspaceName, u.ID)
+
+		freePlan, err := h.planRepo.GetBySlug(txCtx, domainplan.FreePlanSlug)
+		if err != nil || freePlan == nil {
+			return errors.New("free plan not found")
+		}
+		sub := domainsubscription.NewFreeSubscription(freePlan.ID)
+		if err := h.subscriptionRepo.Save(txCtx, sub); err != nil {
+			return errors.New("failed to create free subscription")
+		}
+		workspace.AssignSubscription(sub.ID)
+
+		if err := h.workspaceRepo.Save(txCtx, workspace); err != nil {
+			return err
+		}
+
+		client := domainclient.NewClient(personalClientName(cmd.FirstName, cmd.LastName), workspace.ID, u.ID)
 		client.AddMember(u.ID)
+
 		if err := h.clientRepo.Save(txCtx, client); err != nil {
 			return err
 		}
@@ -65,8 +95,10 @@ func (h *CreateUserHandler) Handle(ctx context.Context, cmd CreateUserCommand) (
 			return err
 		}
 
-		events := append(u.PullEvents(), client.PullEvents()...)
+		events := append(u.PullEvents(), workspace.PullEvents()...)
+		events = append(events, client.PullEvents()...)
 		events = append(events, defaultCampaign.PullEvents()...)
+		events = append(events, sub.PullEvents()...)
 		return h.outbox.StoreEvents(txCtx, events)
 	})
 	if err != nil {
@@ -86,5 +118,18 @@ func personalClientName(firstName, lastName string) string {
 		return fmt.Sprintf("%s's Client", firstName)
 	default:
 		return "Personal Client"
+	}
+}
+
+func personalWorkspaceName(firstName, lastName string) string {
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+	switch {
+	case firstName != "" && lastName != "":
+		return fmt.Sprintf("%s %s", firstName, lastName)
+	case firstName != "":
+		return fmt.Sprintf("%s's Workspace", firstName)
+	default:
+		return "Personal Workspace"
 	}
 }

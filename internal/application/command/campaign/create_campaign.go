@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	cmdquota "go-api/internal/application/command/quota"
 	domaincampaign "go-api/internal/domain/campaign"
 	"go-api/internal/domain/port"
 
@@ -12,22 +13,24 @@ import (
 )
 
 type CreateCampaignCommand struct {
-	Name      string
-	ClientID  uuid.UUID
-	StartAt *time.Time
-	EndAt   *time.Time
+	Name     string
+	ClientID uuid.UUID
+	StartAt  *time.Time
+	EndAt    *time.Time
 }
 
 type CreateCampaignHandler struct {
 	repo   domaincampaign.CampaignWriteRepository
 	outbox port.OutboxRepository
+	quota  *cmdquota.AssertCreateAllowedHandler
 }
 
 func NewCreateCampaignHandler(
 	repo domaincampaign.CampaignWriteRepository,
 	outbox port.OutboxRepository,
+	quota *cmdquota.AssertCreateAllowedHandler,
 ) *CreateCampaignHandler {
-	return &CreateCampaignHandler{repo: repo, outbox: outbox}
+	return &CreateCampaignHandler{repo: repo, outbox: outbox, quota: quota}
 }
 
 func (h *CreateCampaignHandler) Handle(
@@ -39,6 +42,12 @@ func (h *CreateCampaignHandler) Handle(
 	}
 	if cmd.ClientID == uuid.Nil {
 		return nil, errors.New("clientId is required")
+	}
+
+	if h.quota != nil {
+		if err := h.quota.AssertCampaignCreate(ctx, cmd.ClientID); err != nil {
+			return nil, err
+		}
 	}
 
 	campaign, err := domaincampaign.NewCampaign(cmd.Name, cmd.ClientID, cmd.StartAt, cmd.EndAt)

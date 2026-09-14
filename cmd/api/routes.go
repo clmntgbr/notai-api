@@ -21,6 +21,11 @@ func setupWebhooks(app *fiber.App, container *di.Container) {
 		container.MediaUploadWebhookMiddleware.Protected(),
 		container.MediaUploadWebhookHandler.ObjectCreated,
 	)
+	webhooks.Post(
+		"/stripe",
+		container.BillingWebhookMiddleware.Protected(),
+		container.BillingWebhookHandler.Execute,
+	)
 }
 
 func setupHealthChecks(app *fiber.App) {
@@ -32,13 +37,34 @@ func setupHealthChecks(app *fiber.App) {
 func setupAPIRoutes(app *fiber.App, container *di.Container) {
 	public := app.Group("/api")
 
+	setupPlanRoutes(public, container)
+
 	protected := public.Group("", container.AuthenticateMiddleware.Protected())
 	setupUserRoutes(protected, container)
+	setupWorkspaceRoutes(protected, container)
 	setupClientRoutes(protected, container)
 	setupCampaignRoutes(protected, container)
 	setupMediaRoutes(protected, container)
 	setupActivityRoutes(protected, container)
 	setupRealtimeRoutes(protected, container)
+	setupSubscriptionRoutes(protected, container)
+	setupInvoiceRoutes(protected, container)
+}
+
+func setupPlanRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/plans", container.PlanHandler.List)
+}
+
+func setupSubscriptionRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/subscription", container.SubscriptionHandler.GetSubscription)
+	api.Get("/quota", container.SubscriptionHandler.GetQuota)
+	api.Post("/subscriptions", container.SubscriptionHandler.CreateSubscription)
+	api.Post("/subscriptions/preview", container.SubscriptionHandler.PreviewSubscription)
+	api.Get("/subscriptions/portal", container.SubscriptionHandler.CreateBillingPortal)
+}
+
+func setupInvoiceRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/invoices", container.InvoiceHandler.GetInvoices)
 }
 
 func setupRealtimeRoutes(api fiber.Router, container *di.Container) {
@@ -50,12 +76,17 @@ func setupUserRoutes(api fiber.Router, container *di.Container) {
 	api.Put("/users/me/current-client", container.UserHandler.SetCurrentClient)
 }
 
+func setupWorkspaceRoutes(api fiber.Router, container *di.Container) {
+	api.Get("/workspaces/me", container.WorkspaceHandler.GetMe)
+}
+
 func setupClientRoutes(api fiber.Router, container *di.Container) {
 	api.Get("/clients", container.ClientHandler.List)
 	api.Post("/clients", container.ClientHandler.Create)
 	api.Get("/clients/:id", container.ClientHandler.GetByID)
 	api.Put("/clients/:id", container.ClientHandler.Update)
 	api.Delete("/clients/:id", container.ClientHandler.Delete)
+	api.Post("/clients/:id/members", container.ClientHandler.AddMember)
 	api.Delete("/clients/:id/members/:userId", container.ClientHandler.RemoveMember)
 }
 

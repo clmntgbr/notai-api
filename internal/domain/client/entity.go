@@ -9,23 +9,25 @@ import (
 )
 
 type Client struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	MemberIDs []uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	WorkspaceID uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	MemberIDs   []uuid.UUID
 
 	events []event.DomainEvent
 }
 
-func NewClient(name string, createdByUserID uuid.UUID) *Client {
+func NewClient(name string, workspaceID uuid.UUID, createdByUserID uuid.UUID) *Client {
 	now := time.Now().UTC()
 	c := &Client{
-		ID:        uuid.New(),
-		Name:      name,
-		CreatedAt: now,
-		UpdatedAt: now,
-		MemberIDs: nil,
+		ID:          uuid.New(),
+		Name:        name,
+		WorkspaceID: workspaceID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		MemberIDs:   nil,
 	}
 	c.recordEvent(ClientCreated{
 		ID:              uuid.New().String(),

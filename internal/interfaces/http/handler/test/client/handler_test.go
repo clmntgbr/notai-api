@@ -8,6 +8,7 @@ import (
 	"time"
 
 	clientcmd "go-api/internal/application/command/client"
+	cmdquota "go-api/internal/application/command/quota"
 	queryclient "go-api/internal/application/query/client"
 	domainclient "go-api/internal/domain/client"
 	"go-api/internal/domain/paginate"
@@ -70,6 +71,18 @@ func (m *mockRemoveMemberHandler) Handle(_ context.Context, cmd clientcmd.Remove
 	return m.err
 }
 
+type mockAddMemberHandler struct {
+	called bool
+	cmd    clientcmd.AddClientMemberCommand
+	err    error
+}
+
+func (m *mockAddMemberHandler) Handle(_ context.Context, cmd clientcmd.AddClientMemberCommand) error {
+	m.called = true
+	m.cmd = cmd
+	return m.err
+}
+
 type mockGetClientByIDHandler struct {
 	calls int
 	views []*domainclient.ClientView
@@ -108,7 +121,7 @@ func (m *mockListClientsByUserHandler) Handle(
 	return m.views, m.total, m.err
 }
 
-func newClientHandler(create *mockCreateClientHandler, update *mockUpdateClientHandler, deleteH *mockDeleteClientHandler, remove *mockRemoveMemberHandler, getByID *mockGetClientByIDHandler, list *mockListClientsByUserHandler) *handler.ClientHandler {
+func newClientHandler(create *mockCreateClientHandler, update *mockUpdateClientHandler, deleteH *mockDeleteClientHandler, add *mockAddMemberHandler, remove *mockRemoveMemberHandler, getByID *mockGetClientByIDHandler, list *mockListClientsByUserHandler) *handler.ClientHandler {
 	if create == nil {
 		create = &mockCreateClientHandler{}
 	}
@@ -117,6 +130,9 @@ func newClientHandler(create *mockCreateClientHandler, update *mockUpdateClientH
 	}
 	if deleteH == nil {
 		deleteH = &mockDeleteClientHandler{}
+	}
+	if add == nil {
+		add = &mockAddMemberHandler{}
 	}
 	if remove == nil {
 		remove = &mockRemoveMemberHandler{}
@@ -127,27 +143,29 @@ func newClientHandler(create *mockCreateClientHandler, update *mockUpdateClientH
 	if list == nil {
 		list = &mockListClientsByUserHandler{}
 	}
-	return handler.NewClientHandler(create, update, deleteH, remove, getByID, list)
+	return handler.NewClientHandler(create, update, deleteH, add, remove, getByID, list)
 }
 
 func sampleClientEntity() *domainclient.Client {
 	return &domainclient.Client{
-		ID:        testutil.TestClientID,
-		Name:      "My Client",
-		MemberIDs: []uuid.UUID{testutil.TestUserID},
-		CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		ID:          testutil.TestClientID,
+		Name:        "My Client",
+		WorkspaceID: testutil.TestWorkspaceID,
+		MemberIDs:   []uuid.UUID{testutil.TestUserID},
+		CreatedAt:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
 }
 
 func sampleClientView() *domainclient.ClientView {
 	e := sampleClientEntity()
 	return &domainclient.ClientView{
-		ID:        e.ID,
-		Name:      e.Name,
-		MemberIDs: e.MemberIDs,
-		CreatedAt: e.CreatedAt,
-		UpdatedAt: e.UpdatedAt,
+		ID:          e.ID,
+		Name:        e.Name,
+		WorkspaceID: e.WorkspaceID,
+		MemberIDs:   e.MemberIDs,
+		CreatedAt:   e.CreatedAt,
+		UpdatedAt:   e.UpdatedAt,
 	}
 }
 
@@ -163,7 +181,7 @@ func mustJSONRequest(t *testing.T, method, path string, body any) *http.Request 
 func TestClientHandler_List_Success(t *testing.T) {
 	view := sampleClientView()
 	list := &mockListClientsByUserHandler{views: []domainclient.ClientView{*view}, total: 1}
-	h := newClientHandler(nil, nil, nil, nil, nil, list)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, list)
 
 	app := testutil.NewTestApp()
 	app.Get("/clients", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
@@ -201,7 +219,7 @@ func TestClientHandler_List_Success(t *testing.T) {
 }
 
 func TestClientHandler_List_Unauthorized(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get("/clients", h.List)
 
@@ -216,7 +234,7 @@ func TestClientHandler_List_Unauthorized(t *testing.T) {
 
 func TestClientHandler_Create_Success(t *testing.T) {
 	create := &mockCreateClientHandler{result: sampleClientEntity()}
-	h := newClientHandler(create, nil, nil, nil, nil, nil)
+	h := newClientHandler(create, nil, nil, nil, nil, nil, nil)
 
 	app := testutil.NewTestApp()
 	app.Post("/clients", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
@@ -240,7 +258,7 @@ func TestClientHandler_Create_Success(t *testing.T) {
 }
 
 func TestClientHandler_Create_Unauthorized(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post("/clients", h.Create)
 
@@ -255,7 +273,7 @@ func TestClientHandler_Create_Unauthorized(t *testing.T) {
 
 func TestClientHandler_Create_InvalidInput(t *testing.T) {
 	create := &mockCreateClientHandler{}
-	h := newClientHandler(create, nil, nil, nil, nil, nil)
+	h := newClientHandler(create, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post("/clients", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
@@ -273,7 +291,7 @@ func TestClientHandler_Create_InvalidInput(t *testing.T) {
 
 func TestClientHandler_Create_HandlerError_Internal(t *testing.T) {
 	create := &mockCreateClientHandler{err: errors.New("boom")}
-	h := newClientHandler(create, nil, nil, nil, nil, nil)
+	h := newClientHandler(create, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post("/clients", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
@@ -286,9 +304,24 @@ func TestClientHandler_Create_HandlerError_Internal(t *testing.T) {
 	}
 }
 
+func TestClientHandler_Create_WorkspaceNotFound(t *testing.T) {
+	create := &mockCreateClientHandler{err: errors.New("workspace not found")}
+	h := newClientHandler(create, nil, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/clients", map[string]any{"name": "My Client"}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
 func TestClientHandler_GetByID_Success(t *testing.T) {
 	getByID := &mockGetClientByIDHandler{views: []*domainclient.ClientView{sampleClientView()}, errs: []error{nil}}
-	h := newClientHandler(nil, nil, nil, nil, getByID, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, getByID, nil)
 	app := testutil.NewTestApp()
 	app.Get("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
 
@@ -302,7 +335,7 @@ func TestClientHandler_GetByID_Success(t *testing.T) {
 }
 
 func TestClientHandler_GetByID_Unauthorized(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get("/clients/:id", h.GetByID)
 
@@ -316,7 +349,7 @@ func TestClientHandler_GetByID_Unauthorized(t *testing.T) {
 }
 
 func TestClientHandler_GetByID_InvalidID(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Get("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
 
@@ -331,7 +364,7 @@ func TestClientHandler_GetByID_InvalidID(t *testing.T) {
 
 func TestClientHandler_GetByID_NotFound(t *testing.T) {
 	getByID := &mockGetClientByIDHandler{views: []*domainclient.ClientView{nil}, errs: []error{errors.New("client not found")}}
-	h := newClientHandler(nil, nil, nil, nil, getByID, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, getByID, nil)
 	app := testutil.NewTestApp()
 	app.Get("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
 
@@ -347,7 +380,7 @@ func TestClientHandler_GetByID_NotFound(t *testing.T) {
 func TestClientHandler_Update_Success(t *testing.T) {
 	update := &mockUpdateClientHandler{}
 	getByID := &mockGetClientByIDHandler{views: []*domainclient.ClientView{sampleClientView()}, errs: []error{nil}}
-	h := newClientHandler(nil, update, nil, nil, getByID, nil)
+	h := newClientHandler(nil, update, nil, nil, nil, getByID, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
@@ -365,7 +398,7 @@ func TestClientHandler_Update_Success(t *testing.T) {
 
 func TestClientHandler_Update_NotFound(t *testing.T) {
 	update := &mockUpdateClientHandler{err: errors.New("client not found")}
-	h := newClientHandler(nil, update, nil, nil, nil, nil)
+	h := newClientHandler(nil, update, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
@@ -380,7 +413,7 @@ func TestClientHandler_Update_NotFound(t *testing.T) {
 
 func TestClientHandler_Delete_Success(t *testing.T) {
 	deleteH := &mockDeleteClientHandler{}
-	h := newClientHandler(nil, nil, deleteH, nil, nil, nil)
+	h := newClientHandler(nil, nil, deleteH, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Delete)
 
@@ -397,7 +430,7 @@ func TestClientHandler_Delete_Success(t *testing.T) {
 }
 
 func TestClientHandler_Delete_InvalidID(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Delete)
 
@@ -412,7 +445,7 @@ func TestClientHandler_Delete_InvalidID(t *testing.T) {
 
 func TestClientHandler_Delete_HandlerError_Internal(t *testing.T) {
 	deleteH := &mockDeleteClientHandler{err: errors.New("boom")}
-	h := newClientHandler(nil, nil, deleteH, nil, nil, nil)
+	h := newClientHandler(nil, nil, deleteH, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Delete)
 
@@ -427,7 +460,7 @@ func TestClientHandler_Delete_HandlerError_Internal(t *testing.T) {
 
 func TestClientHandler_RemoveMember_Success(t *testing.T) {
 	remove := &mockRemoveMemberHandler{}
-	h := newClientHandler(nil, nil, nil, remove, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, remove, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id/members/:userId", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.RemoveMember)
 
@@ -446,7 +479,7 @@ func TestClientHandler_RemoveMember_Success(t *testing.T) {
 
 func TestClientHandler_RemoveMember_NotFound(t *testing.T) {
 	remove := &mockRemoveMemberHandler{err: errors.New("client not found")}
-	h := newClientHandler(nil, nil, nil, remove, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, remove, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id/members/:userId", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.RemoveMember)
 
@@ -462,7 +495,7 @@ func TestClientHandler_RemoveMember_NotFound(t *testing.T) {
 
 func TestClientHandler_List_HandlerError_Internal(t *testing.T) {
 	list := &mockListClientsByUserHandler{err: errors.New("db")}
-	h := newClientHandler(nil, nil, nil, nil, nil, list)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, list)
 	app := testutil.NewTestApp()
 	app.Get("/clients", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
@@ -477,7 +510,7 @@ func TestClientHandler_List_HandlerError_Internal(t *testing.T) {
 
 func TestClientHandler_GetByID_HandlerError_Internal(t *testing.T) {
 	getByID := &mockGetClientByIDHandler{views: []*domainclient.ClientView{nil}, errs: []error{errors.New("db")}}
-	h := newClientHandler(nil, nil, nil, nil, getByID, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, getByID, nil)
 	app := testutil.NewTestApp()
 	app.Get("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.GetByID)
 
@@ -491,7 +524,7 @@ func TestClientHandler_GetByID_HandlerError_Internal(t *testing.T) {
 }
 
 func TestClientHandler_Update_Unauthorized(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", h.Update)
 
@@ -505,7 +538,7 @@ func TestClientHandler_Update_Unauthorized(t *testing.T) {
 }
 
 func TestClientHandler_Update_InvalidID(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
@@ -520,7 +553,7 @@ func TestClientHandler_Update_InvalidID(t *testing.T) {
 
 func TestClientHandler_Update_InvalidInput(t *testing.T) {
 	update := &mockUpdateClientHandler{}
-	h := newClientHandler(nil, update, nil, nil, nil, nil)
+	h := newClientHandler(nil, update, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
@@ -538,7 +571,7 @@ func TestClientHandler_Update_InvalidInput(t *testing.T) {
 
 func TestClientHandler_Update_HandlerError_Internal(t *testing.T) {
 	update := &mockUpdateClientHandler{err: errors.New("boom")}
-	h := newClientHandler(nil, update, nil, nil, nil, nil)
+	h := newClientHandler(nil, update, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
@@ -554,7 +587,7 @@ func TestClientHandler_Update_HandlerError_Internal(t *testing.T) {
 func TestClientHandler_Update_ReloadFailure(t *testing.T) {
 	update := &mockUpdateClientHandler{}
 	getByID := &mockGetClientByIDHandler{views: []*domainclient.ClientView{nil}, errs: []error{errors.New("reload")}}
-	h := newClientHandler(nil, update, nil, nil, getByID, nil)
+	h := newClientHandler(nil, update, nil, nil, nil, getByID, nil)
 	app := testutil.NewTestApp()
 	app.Put("/clients/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
@@ -568,7 +601,7 @@ func TestClientHandler_Update_ReloadFailure(t *testing.T) {
 }
 
 func TestClientHandler_RemoveMember_InvalidClientID(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id/members/:userId", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.RemoveMember)
 
@@ -582,7 +615,7 @@ func TestClientHandler_RemoveMember_InvalidClientID(t *testing.T) {
 }
 
 func TestClientHandler_RemoveMember_InvalidUserID(t *testing.T) {
-	h := newClientHandler(nil, nil, nil, nil, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id/members/:userId", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.RemoveMember)
 
@@ -597,12 +630,147 @@ func TestClientHandler_RemoveMember_InvalidUserID(t *testing.T) {
 
 func TestClientHandler_RemoveMember_HandlerError_Internal(t *testing.T) {
 	remove := &mockRemoveMemberHandler{err: errors.New("boom")}
-	h := newClientHandler(nil, nil, nil, remove, nil, nil)
+	h := newClientHandler(nil, nil, nil, nil, remove, nil, nil)
 	app := testutil.NewTestApp()
 	app.Delete("/clients/:id/members/:userId", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.RemoveMember)
 
 	path := "/clients/" + testutil.TestClientID.String() + "/members/" + testutil.TestUserID.String()
 	resp, err := app.Test(mustJSONRequest(t, http.MethodDelete, path, nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestClientHandler_AddMember_Success(t *testing.T) {
+	add := &mockAddMemberHandler{}
+	h := newClientHandler(nil, nil, nil, add, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	inviteeID := uuid.MustParse("01960000-0000-7000-8000-000000000099")
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": inviteeID.String()}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !add.called {
+		t.Fatal("add not called")
+	}
+	if add.cmd.ClientID != testutil.TestClientID || add.cmd.UserID != inviteeID || add.cmd.ActorUserID != testutil.TestUserID {
+		t.Fatalf("cmd: %+v", add.cmd)
+	}
+}
+
+func TestClientHandler_AddMember_Unauthorized(t *testing.T) {
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", h.AddMember)
+
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": testutil.TestUserID.String()}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestClientHandler_AddMember_InvalidClientID(t *testing.T) {
+	h := newClientHandler(nil, nil, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/clients/bad/members", map[string]any{"userId": testutil.TestUserID.String()}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestClientHandler_AddMember_InvalidInput(t *testing.T) {
+	add := &mockAddMemberHandler{}
+	h := newClientHandler(nil, nil, nil, add, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": "bad"}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if add.called {
+		t.Fatal("add must not be called")
+	}
+}
+
+func TestClientHandler_AddMember_NotFound_Client(t *testing.T) {
+	add := &mockAddMemberHandler{err: errors.New("client not found")}
+	h := newClientHandler(nil, nil, nil, add, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": testutil.TestUserID.String()}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestClientHandler_AddMember_NotFound_User(t *testing.T) {
+	add := &mockAddMemberHandler{err: errors.New("user not found")}
+	h := newClientHandler(nil, nil, nil, add, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": testutil.TestUserID.String()}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestClientHandler_AddMember_QuotaExceeded(t *testing.T) {
+	add := &mockAddMemberHandler{err: cmdquota.ErrMemberQuotaExceeded}
+	h := newClientHandler(nil, nil, nil, add, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": testutil.TestUserID.String()}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestClientHandler_AddMember_HandlerError_Internal(t *testing.T) {
+	add := &mockAddMemberHandler{err: errors.New("boom")}
+	h := newClientHandler(nil, nil, nil, add, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/clients/:id/members", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.AddMember)
+
+	path := "/clients/" + testutil.TestClientID.String() + "/members"
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, path, map[string]any{"userId": testutil.TestUserID.String()}))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}

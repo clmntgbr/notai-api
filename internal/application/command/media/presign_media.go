@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	cmdquota "go-api/internal/application/command/quota"
 	domaincampaign "go-api/internal/domain/campaign"
 	"go-api/internal/domain/event"
 	domainmedia "go-api/internal/domain/media"
@@ -46,6 +47,7 @@ type PresignMediaHandler struct {
 	mediaRepo    domainmedia.MediaWriteRepository
 	outbox       port.OutboxRepository
 	storage      port.Storage
+	quota        *cmdquota.AssertCreateAllowedHandler
 }
 
 func NewPresignMediaHandler(
@@ -53,12 +55,14 @@ func NewPresignMediaHandler(
 	mediaRepo domainmedia.MediaWriteRepository,
 	outbox port.OutboxRepository,
 	storage port.Storage,
+	quota *cmdquota.AssertCreateAllowedHandler,
 ) *PresignMediaHandler {
 	return &PresignMediaHandler{
 		campaignRepo: campaignRepo,
 		mediaRepo:    mediaRepo,
 		outbox:       outbox,
 		storage:      storage,
+		quota:        quota,
 	}
 }
 
@@ -74,15 +78,31 @@ func (h *PresignMediaHandler) Handle(
 	}
 
 	normalized := make([]PresignFileInput, 0, len(cmd.Files))
+	verificationUnits := 0
 	for _, file := range cmd.Files {
 		filename := filepath.Base(strings.TrimSpace(file.Filename))
 		if err := domainmedia.ValidateFilename(filename); err != nil {
 			return nil, err
 		}
+		mediaType, err := domainmedia.DetectMediaType(filename, strings.TrimSpace(file.ContentType))
+		if err != nil {
+			return nil, err
+		}
+		if h.quota != nil {
+			if err := h.quota.AssertMediaUpload(ctx, cmd.ClientID, mediaType, nil); err != nil {
+				return nil, err
+			}
+		}
+		verificationUnits++
 		normalized = append(normalized, PresignFileInput{
 			Filename:    filename,
 			ContentType: strings.TrimSpace(file.ContentType),
 		})
+	}
+	if h.quota != nil {
+		if err := h.quota.AssertVerificationReserve(ctx, cmd.ClientID, verificationUnits); err != nil {
+			return nil, err
+		}
 	}
 
 	created := make([]*domainmedia.Media, 0, len(normalized))

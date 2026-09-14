@@ -9,12 +9,13 @@ import (
 )
 
 type ClientDetailResponse struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	IsActive  bool      `json:"isActive"`
-	MemberIDs []string  `json:"memberIds"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	WorkspaceID string    `json:"workspaceId"`
+	IsActive    bool      `json:"isActive"`
+	MemberIDs   []string  `json:"memberIds"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 func NewClientDetailResponseFromView(
@@ -22,12 +23,13 @@ func NewClientDetailResponseFromView(
 	currentClientID *uuid.UUID,
 ) ClientDetailResponse {
 	return ClientDetailResponse{
-		ID:        view.ID.String(),
-		Name:      view.Name,
-		IsActive:  isCurrentClient(view.ID, currentClientID),
-		MemberIDs: uuidStrings(view.MemberIDs),
-		CreatedAt: view.CreatedAt,
-		UpdatedAt: view.UpdatedAt,
+		ID:          view.ID.String(),
+		Name:        view.Name,
+		WorkspaceID: view.WorkspaceID.String(),
+		IsActive:    isCurrentClient(view.ID, currentClientID),
+		MemberIDs:   uuidStrings(view.MemberIDs),
+		CreatedAt:   view.CreatedAt,
+		UpdatedAt:   view.UpdatedAt,
 	}
 }
 
@@ -36,12 +38,13 @@ func NewClientDetailResponseFromEntity(
 	currentClientID *uuid.UUID,
 ) ClientDetailResponse {
 	return ClientDetailResponse{
-		ID:        client.ID.String(),
-		Name:      client.Name,
-		IsActive:  isCurrentClient(client.ID, currentClientID),
-		MemberIDs: uuidStrings(client.MemberIDs),
-		CreatedAt: client.CreatedAt,
-		UpdatedAt: client.UpdatedAt,
+		ID:          client.ID.String(),
+		Name:        client.Name,
+		WorkspaceID: client.WorkspaceID.String(),
+		IsActive:    isCurrentClient(client.ID, currentClientID),
+		MemberIDs:   uuidStrings(client.MemberIDs),
+		CreatedAt:   client.CreatedAt,
+		UpdatedAt:   client.UpdatedAt,
 	}
 }
 

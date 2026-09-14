@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	cmdquota "go-api/internal/application/command/quota"
 	domaincontent "go-api/internal/domain/content"
 	domainmedia "go-api/internal/domain/media"
 	"go-api/internal/domain/port"
@@ -26,6 +27,7 @@ type ProcessUploadHandler struct {
 	outbox      port.OutboxRepository
 	storage     port.Storage
 	thumbnailer port.Thumbnailer
+	quota       *cmdquota.AssertCreateAllowedHandler
 }
 
 func NewProcessUploadHandler(
@@ -34,6 +36,7 @@ func NewProcessUploadHandler(
 	outbox port.OutboxRepository,
 	storage port.Storage,
 	thumbnailer port.Thumbnailer,
+	quota *cmdquota.AssertCreateAllowedHandler,
 ) *ProcessUploadHandler {
 	return &ProcessUploadHandler{
 		mediaRepo:   mediaRepo,
@@ -41,6 +44,7 @@ func NewProcessUploadHandler(
 		outbox:      outbox,
 		storage:     storage,
 		thumbnailer: thumbnailer,
+		quota:       quota,
 	}
 }
 
@@ -59,6 +63,22 @@ func (h *ProcessUploadHandler) Handle(ctx context.Context, cmd ProcessUploadComm
 	}
 	if media.Status != domainmedia.StatusPendingUpload {
 		return nil
+	}
+
+	size := cmd.Size
+	if h.quota != nil {
+		sizePtr := &size
+		if size <= 0 {
+			sizePtr = nil
+		}
+		if err := h.quota.AssertMediaUpload(ctx, media.ClientID, media.MediaType, sizePtr); err != nil {
+			return h.fail(ctx, media, objectKey, err)
+		}
+		if size > 0 {
+			if err := h.quota.AssertFileSize(ctx, media.ClientID, size); err != nil {
+				return h.fail(ctx, media, objectKey, err)
+			}
+		}
 	}
 
 	maxBytes := domainmedia.MaxBytesFor(media.MediaType)
@@ -94,9 +114,13 @@ func (h *ProcessUploadHandler) Handle(ctx context.Context, cmd ProcessUploadComm
 		}
 	}
 
-	size := cmd.Size
 	if size <= 0 {
 		size = int64(len(raw))
+	}
+	if h.quota != nil {
+		if err := h.quota.AssertFileSize(ctx, media.ClientID, size); err != nil {
+			return h.fail(ctx, media, objectKey, err)
+		}
 	}
 
 	switch media.MediaType {

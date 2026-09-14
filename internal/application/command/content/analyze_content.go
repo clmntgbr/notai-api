@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	cmdquota "go-api/internal/application/command/quota"
 	"go-api/internal/domain/analysisresult"
 	domaincontent "go-api/internal/domain/content"
 	domainmedia "go-api/internal/domain/media"
@@ -27,6 +28,7 @@ type AnalyzeContentHandler struct {
 	outbox                 port.OutboxRepository
 	detectors              []domaincontent.Detector
 	maxConcurrentDetectors int
+	quota                  *cmdquota.AssertCreateAllowedHandler
 }
 
 func NewAnalyzeContentHandler(
@@ -36,6 +38,7 @@ func NewAnalyzeContentHandler(
 	outbox port.OutboxRepository,
 	detectors []domaincontent.Detector,
 	maxConcurrentDetectors int,
+	quota *cmdquota.AssertCreateAllowedHandler,
 ) *AnalyzeContentHandler {
 	if maxConcurrentDetectors <= 0 {
 		maxConcurrentDetectors = 3
@@ -47,6 +50,7 @@ func NewAnalyzeContentHandler(
 		outbox:                 outbox,
 		detectors:              detectors,
 		maxConcurrentDetectors: maxConcurrentDetectors,
+		quota:                  quota,
 	}
 }
 
@@ -72,6 +76,27 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 
 	switch content.Status {
 	case domaincontent.StatusUploaded:
+		if h.quota != nil {
+			media, err := h.mediaRepo.GetByID(ctx, content.MediaID)
+			if err != nil {
+				return err
+			}
+			if media != nil {
+				if err := h.quota.AssertAnalyze(ctx, media.ClientID); err != nil {
+					if errors.Is(err, cmdquota.ErrVerificationQuotaExceeded) {
+						if markErr := content.MarkFailed(); markErr == nil {
+							_ = h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+								if err := h.contentRepo.Update(txCtx, content); err != nil {
+									return err
+								}
+								return h.outbox.StoreEvents(txCtx, content.PullEvents())
+							})
+						}
+					}
+					return err
+				}
+			}
+		}
 		if err := content.StartAnalysis(); err != nil {
 			return err
 		}

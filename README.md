@@ -177,6 +177,7 @@ All `/api/*` routes below (except health) require `Authorization: Bearer <Clerk 
 | `GET` | `/api/clients/:id` | Get by id |
 | `PUT` | `/api/clients/:id` | Update |
 | `DELETE` | `/api/clients/:id` | Delete |
+| `POST` | `/api/clients/:id/members` | Invite member — body `{ "userId" }` (quota seats on that client) |
 | `DELETE` | `/api/clients/:id/members/:userId` | Remove member (clears their current if needed) |
 
 ### Campaigns

@@ -82,6 +82,9 @@ func (h *CampaignHandler) Create(c fiber.Ctx) error {
 		EndAt:   req.EndAt,
 	})
 	if err != nil {
+		if handled, quotaErr := respondQuotaError(c, err); handled {
+			return quotaErr
+		}
 		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "endAt must be after startAt"})
 		}

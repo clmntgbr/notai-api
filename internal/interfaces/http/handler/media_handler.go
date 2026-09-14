@@ -79,6 +79,9 @@ func (h *MediaHandler) Presign(c fiber.Ctx) error {
 		Files:      files,
 	})
 	if err != nil {
+		if handled, quotaErr := respondQuotaError(c, err); handled {
+			return quotaErr
+		}
 		if errors.Is(err, domainmedia.ErrUnsupportedContentType) {
 			return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
 				"message": "Unsupported media type",

@@ -3,9 +3,11 @@ package content
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 
 	contentcmd "go-api/internal/application/command/content"
+	cmdquota "go-api/internal/application/command/quota"
 	"go-api/internal/application/messaging"
 	domaincontent "go-api/internal/domain/content"
 
@@ -33,6 +35,11 @@ func (h *AnalyzeOnUploadedHandler) Handle(ctx context.Context, payload []byte) e
 
 	log.Printf("content analysis started content_id=%s", contentID)
 	if err := h.analyze.Handle(ctx, contentcmd.AnalyzeContentCommand{ContentID: contentID}); err != nil {
+		if errors.Is(err, cmdquota.ErrVerificationQuotaExceeded) ||
+			errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed) ||
+			errors.Is(err, cmdquota.ErrFileSizeQuotaExceeded) {
+			return messaging.NonRetryable(err)
+		}
 		return messaging.Retryable(err)
 	}
 	log.Printf("content analysis finished content_id=%s", contentID)

@@ -13,10 +13,11 @@ import (
 )
 
 type clientRow struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Name        string
+	WorkspaceID uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (clientRow) TableName() string { return "clients" }
@@ -39,7 +40,7 @@ func NewClientReadRepository(db *gorm.DB) domainclient.ClientReadRepository {
 func (r *clientReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*domainclient.ClientView, error) {
 	var row clientRow
 	err := r.db.WithContext(ctx).
-		Select("id", "name", "created_at", "updated_at").
+		Select("id", "name", "workspace_id", "created_at", "updated_at").
 		First(&row, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -78,7 +79,7 @@ func (r *clientReadRepository) FindByUserID(
 
 	var rows []clientRow
 	if err := r.db.WithContext(ctx).
-		Select("id", "name", "created_at", "updated_at").
+		Select("id", "name", "workspace_id", "created_at", "updated_at").
 		Where("id IN ?", clientIDs).
 		Order("created_at ASC").
 		Find(&rows).Error; err != nil {
@@ -127,8 +128,13 @@ func (r *clientReadRepository) FindPageByUserID(
 	}
 
 	var rows []clientRow
-	if err := db.Select("clients.id", "clients.name", "clients.created_at", "clients.updated_at").
-		Find(&rows).Error; err != nil {
+	if err := db.Select(
+		"clients.id",
+		"clients.name",
+		"clients.workspace_id",
+		"clients.created_at",
+		"clients.updated_at",
+	).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -160,10 +166,11 @@ func (r *clientReadRepository) loadMemberIDs(ctx context.Context, clientID uuid.
 
 func toClientView(row clientRow, memberIDs []uuid.UUID) *domainclient.ClientView {
 	return &domainclient.ClientView{
-		ID:        row.ID,
-		Name:      row.Name,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
-		MemberIDs: memberIDs,
+		ID:          row.ID,
+		Name:        row.Name,
+		WorkspaceID: row.WorkspaceID,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+		MemberIDs:   memberIDs,
 	}
 }

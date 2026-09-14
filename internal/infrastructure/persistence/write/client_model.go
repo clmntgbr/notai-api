@@ -9,10 +9,11 @@ import (
 )
 
 type ClientModel struct {
-	ID        uuid.UUID `gorm:"column:id;primaryKey"`
-	Name      string    `gorm:"column:name"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at"`
+	ID          uuid.UUID `gorm:"column:id;primaryKey"`
+	Name        string    `gorm:"column:name"`
+	WorkspaceID uuid.UUID `gorm:"column:workspace_id"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at"`
 }
 
 func (ClientModel) TableName() string {
@@ -31,19 +32,21 @@ func (UserClientModel) TableName() string {
 
 func clientModelFromDomain(c *domainclient.Client) *ClientModel {
 	return &ClientModel{
-		ID:        c.ID,
-		Name:      c.Name,
-		CreatedAt: c.CreatedAt,
-		UpdatedAt: c.UpdatedAt,
+		ID:          c.ID,
+		Name:        c.Name,
+		WorkspaceID: c.WorkspaceID,
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
 	}
 }
 
 func clientDomainFromModel(m *ClientModel, memberIDs []uuid.UUID) *domainclient.Client {
 	return &domainclient.Client{
-		ID:        m.ID,
-		Name:      m.Name,
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
-		MemberIDs: memberIDs,
+		ID:          m.ID,
+		Name:        m.Name,
+		WorkspaceID: m.WorkspaceID,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
+		MemberIDs:   memberIDs,
 	}
 }

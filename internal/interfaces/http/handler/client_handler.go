@@ -19,6 +19,7 @@ type ClientHandler struct {
 	createHandler       clientCreateHandler
 	updateHandler       clientUpdateHandler
 	deleteHandler       clientDeleteHandler
+	addMemberHandler    clientAddMemberHandler
 	removeMemberHandler clientRemoveMemberHandler
 	getByIDHandler      clientGetByIDHandler
 	listByUserHandler   clientListByUserHandler
@@ -28,6 +29,7 @@ func NewClientHandler(
 	createHandler clientCreateHandler,
 	updateHandler clientUpdateHandler,
 	deleteHandler clientDeleteHandler,
+	addMemberHandler clientAddMemberHandler,
 	removeMemberHandler clientRemoveMemberHandler,
 	getByIDHandler clientGetByIDHandler,
 	listByUserHandler clientListByUserHandler,
@@ -36,6 +38,7 @@ func NewClientHandler(
 		createHandler:       createHandler,
 		updateHandler:       updateHandler,
 		deleteHandler:       deleteHandler,
+		addMemberHandler:    addMemberHandler,
 		removeMemberHandler: removeMemberHandler,
 		getByIDHandler:      getByIDHandler,
 		listByUserHandler:   listByUserHandler,
@@ -99,6 +102,9 @@ func (h *ClientHandler) Create(c fiber.Ctx) error {
 		CreatorUserID: user.ID,
 	})
 	if err != nil {
+		if err.Error() == "workspace not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Workspace not found"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to create client"})
 	}
 
@@ -181,6 +187,47 @@ func (h *ClientHandler) Delete(c fiber.Ctx) error {
 
 	if err := h.deleteHandler.Handle(c.Context(), id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to delete client"})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *ClientHandler) AddMember(c fiber.Ctx) error {
+	actor, err := httpctx.GetUser(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Unauthorized"})
+	}
+
+	clientID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid client id"})
+	}
+
+	var req dto.AddClientMemberRequest
+	if err := validation.BindBody(c, &req); err != nil {
+		return err
+	}
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid user id"})
+	}
+
+	err = h.addMemberHandler.Handle(c.Context(), clientcmd.AddClientMemberCommand{
+		ClientID:    clientID,
+		UserID:      userID,
+		ActorUserID: actor.ID,
+	})
+	if err != nil {
+		if handled, quotaErr := respondQuotaError(c, err); handled {
+			return quotaErr
+		}
+		if err.Error() == "client not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Client not found"})
+		}
+		if err.Error() == "user not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "User not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to add member"})
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
