@@ -67,7 +67,10 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		campaignReadRepo,
 		contentReadRepo,
 	)
-	assertCreateAllowedHandler := cmdquota.NewAssertCreateAllowedHandler(getQuotaUsageHandler)
+	assertCreateAllowedHandler := cmdquota.NewAssertCreateAllowedHandler(
+		getQuotaUsageHandler,
+		write.NewAnalysisQuotaLocker(db),
+	)
 
 	detectors := analysis.BuildDetectors(env, minioStorage, db)
 	analyzeHandler := contentcmd.NewAnalyzeContentHandler(

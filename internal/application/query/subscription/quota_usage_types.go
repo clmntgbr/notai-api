@@ -1,6 +1,10 @@
 package subscription
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type QuotaCounter struct {
 	Used int64
@@ -28,6 +32,7 @@ type QuotaLimits struct {
 }
 
 type QuotaUsageView struct {
+	WorkspaceID         uuid.UUID
 	Members             QuotaCounter
 	Campaigns           QuotaCounter
 	Verifications       MonthlyQuotaCounter

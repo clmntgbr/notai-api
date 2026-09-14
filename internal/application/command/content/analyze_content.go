@@ -76,31 +76,47 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 
 	switch content.Status {
 	case domaincontent.StatusUploaded:
-		if h.quota != nil {
-			media, err := h.mediaRepo.GetByID(ctx, content.MediaID)
+		media, err := h.mediaRepo.GetByID(ctx, content.MediaID)
+		if err != nil {
+			return err
+		}
+		if media == nil {
+			return fmt.Errorf("media %s not found for content %s", content.MediaID, content.ID)
+		}
+		if err := h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+			fresh, err := h.contentRepo.GetByID(txCtx, content.ID)
 			if err != nil {
 				return err
 			}
-			if media != nil {
-				if err := h.quota.AssertAnalyze(ctx, media.ClientID); err != nil {
-					if isHardAnalysisQuotaError(err) {
-						if failErr := h.failQuotaBlockedAnalysis(ctx, content, media, err); failErr != nil {
-							return failErr
-						}
-					}
+			if fresh == nil {
+				return nil
+			}
+			if fresh.Status != domaincontent.StatusUploaded {
+				*content = *fresh
+				return nil
+			}
+			if h.quota != nil {
+				if err := h.quota.AssertAnalyze(txCtx, media.ClientID); err != nil {
 					return err
 				}
 			}
-		}
-		if err := content.StartAnalysis(); err != nil {
-			return err
-		}
-		if err := h.contentRepo.WithTransaction(ctx, func(txCtx context.Context) error {
-			if err := h.contentRepo.Update(txCtx, content); err != nil {
+			if err := fresh.StartAnalysis(); err != nil {
 				return err
 			}
-			return h.outbox.StoreEvents(txCtx, content.PullEvents())
+			if err := h.contentRepo.Update(txCtx, fresh); err != nil {
+				return err
+			}
+			if err := h.outbox.StoreEvents(txCtx, fresh.PullEvents()); err != nil {
+				return err
+			}
+			*content = *fresh
+			return nil
 		}); err != nil {
+			if h.quota != nil && isHardAnalysisQuotaError(err) {
+				if failErr := h.failQuotaBlockedAnalysis(ctx, content, media, err); failErr != nil {
+					return failErr
+				}
+			}
 			return err
 		}
 	case domaincontent.StatusAnalyzing:

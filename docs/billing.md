@@ -51,7 +51,9 @@ Enforced inside application commands (not HTTP middleware). Handlers map quota e
 | `max_file_size_mb` | media process upload |
 | `allows_video_analysis` | media presign / process upload |
 
-**Verification unit** = analyzed **Content** (image or video frame), not Media.
+`max_verifications_per_month` is checked when analysis starts, under a per-workspace DB advisory lock in the same transaction that moves the content to `analyzing` (avoids overshoot under concurrent workers).
+
+**Verification unit** = **Content** currently `analyzing`, or `analyzed` in the billing period. Period uses `media.analyzed_at` when the media is finalized, otherwise `contents.updated_at` (verdict time). Upload / `uploaded` does not reserve a slot.
 
 If `overage_price_cents > 0`, verification overage is allowed (no Stripe overage billing in v1). Free plan has `0` → hard block.
 

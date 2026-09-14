@@ -6,6 +6,7 @@ import (
 
 	querysubscription "go-api/internal/application/query/subscription"
 	domainmedia "go-api/internal/domain/media"
+	"go-api/internal/domain/port"
 
 	"github.com/google/uuid"
 )
@@ -21,12 +22,17 @@ var (
 
 type AssertCreateAllowedHandler struct {
 	getQuotaUsage *querysubscription.GetQuotaUsageHandler
+	locker        port.AnalysisQuotaLocker
 }
 
 func NewAssertCreateAllowedHandler(
 	getQuotaUsage *querysubscription.GetQuotaUsageHandler,
+	locker port.AnalysisQuotaLocker,
 ) *AssertCreateAllowedHandler {
-	return &AssertCreateAllowedHandler{getQuotaUsage: getQuotaUsage}
+	return &AssertCreateAllowedHandler{
+		getQuotaUsage: getQuotaUsage,
+		locker:        locker,
+	}
 }
 
 func (h *AssertCreateAllowedHandler) AssertMemberCreate(ctx context.Context, clientID uuid.UUID) error {
@@ -67,13 +73,7 @@ func (h *AssertCreateAllowedHandler) AssertVerificationReserve(
 	if err != nil {
 		return err
 	}
-	if usage.Limits.OveragePriceCents > 0 {
-		return nil
-	}
-	if usage.Verifications.Left < int64(count) {
-		return ErrVerificationQuotaExceeded
-	}
-	return nil
+	return assertVerificationSlots(usage, count)
 }
 
 func (h *AssertCreateAllowedHandler) AssertConcurrentAnalysis(ctx context.Context, clientID uuid.UUID) error {
@@ -81,10 +81,7 @@ func (h *AssertCreateAllowedHandler) AssertConcurrentAnalysis(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	if usage.ConcurrentAnalyses.Left <= 0 {
-		return ErrConcurrentQuotaExceeded
-	}
-	return nil
+	return assertConcurrentSlot(usage)
 }
 
 func (h *AssertCreateAllowedHandler) AssertFileSize(
@@ -125,9 +122,42 @@ func (h *AssertCreateAllowedHandler) AssertMediaUpload(
 	return nil
 }
 
+// AssertAnalyze must run inside the same DB transaction that transitions the content
+// to analyzing, so the workspace advisory lock is held until the slot is reserved.
 func (h *AssertCreateAllowedHandler) AssertAnalyze(ctx context.Context, clientID uuid.UUID) error {
-	if err := h.AssertVerificationCreate(ctx, clientID); err != nil {
+	if h.locker == nil {
+		return errors.New("analysis quota locker is required")
+	}
+	usage, err := h.getQuotaUsage.Handle(ctx, querysubscription.GetQuotaUsageQuery{ClientID: clientID})
+	if err != nil {
 		return err
 	}
-	return h.AssertConcurrentAnalysis(ctx, clientID)
+	if err := h.locker.Lock(ctx, usage.WorkspaceID); err != nil {
+		return err
+	}
+	usage, err = h.getQuotaUsage.Handle(ctx, querysubscription.GetQuotaUsageQuery{ClientID: clientID})
+	if err != nil {
+		return err
+	}
+	if err := assertVerificationSlots(usage, 1); err != nil {
+		return err
+	}
+	return assertConcurrentSlot(usage)
+}
+
+func assertVerificationSlots(usage *querysubscription.QuotaUsageView, count int) error {
+	if usage.Limits.OveragePriceCents > 0 {
+		return nil
+	}
+	if usage.Verifications.Left < int64(count) {
+		return ErrVerificationQuotaExceeded
+	}
+	return nil
+}
+
+func assertConcurrentSlot(usage *querysubscription.QuotaUsageView) error {
+	if usage.ConcurrentAnalyses.Left <= 0 {
+		return ErrConcurrentQuotaExceeded
+	}
+	return nil
 }

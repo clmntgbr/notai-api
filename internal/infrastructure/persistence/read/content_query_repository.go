@@ -53,9 +53,11 @@ func (r *contentReadRepository) CountByClientIDAndStatusInPeriod(
 	return count, err
 }
 
-// CountQuotaUnitsByClientIDInPeriod counts contents that already consume monthly verification quota:
-// in-flight (uploaded/analyzing) plus analyzed in the billing period. Also includes pending_upload
-// media that do not yet have a content row.
+// CountQuotaUnitsByClientIDInPeriod counts contents that consume monthly verification quota:
+// currently analyzing, plus analyzed in the billing period.
+// Analyzed units use media.analyzed_at when the media is finalized; otherwise contents.updated_at
+// (set when the content verdict is rendered) so in-flight finals still consume a slot.
+// Uploaded / pending_upload are not reserved — quota is checked when analysis starts.
 func (r *contentReadRepository) CountQuotaUnitsByClientIDInPeriod(
 	ctx context.Context,
 	clientID uuid.UUID,
@@ -67,11 +69,11 @@ func (r *contentReadRepository) CountQuotaUnitsByClientIDInPeriod(
 		JOIN media ON media.id = contents.media_id
 		WHERE media.client_id = @clientID
 		  AND (
-			contents.status IN ('uploaded', 'analyzing')
+			contents.status = 'analyzing'
 			OR (
 				contents.status = 'analyzed'
-				AND media.analyzed_at >= @from
-				AND media.analyzed_at < @to
+				AND COALESCE(media.analyzed_at, contents.updated_at) >= @from
+				AND COALESCE(media.analyzed_at, contents.updated_at) < @to
 			)
 		  )
 	`, map[string]any{
@@ -79,23 +81,7 @@ func (r *contentReadRepository) CountQuotaUnitsByClientIDInPeriod(
 		"from":     from,
 		"to":       to,
 	}).Scan(&contentCount).Error
-	if err != nil {
-		return 0, err
-	}
-
-	var pendingMedia int64
-	err = r.db.WithContext(ctx).Raw(`
-		SELECT COUNT(*) FROM media
-		WHERE client_id = @clientID
-		  AND status = 'pending_upload'
-		  AND NOT EXISTS (
-			SELECT 1 FROM contents c WHERE c.media_id = media.id
-		  )
-	`, map[string]any{"clientID": clientID}).Scan(&pendingMedia).Error
-	if err != nil {
-		return 0, err
-	}
-	return contentCount + pendingMedia, nil
+	return contentCount, err
 }
 
 func (r *contentReadRepository) CountByWorkspaceIDAndStatus(
@@ -125,11 +111,11 @@ func (r *contentReadRepository) CountQuotaUnitsByWorkspaceIDInPeriod(
 		JOIN clients ON clients.id = media.client_id
 		WHERE clients.workspace_id = @workspaceID
 		  AND (
-			contents.status IN ('uploaded', 'analyzing')
+			contents.status = 'analyzing'
 			OR (
 				contents.status = 'analyzed'
-				AND media.analyzed_at >= @from
-				AND media.analyzed_at < @to
+				AND COALESCE(media.analyzed_at, contents.updated_at) >= @from
+				AND COALESCE(media.analyzed_at, contents.updated_at) < @to
 			)
 		  )
 	`, map[string]any{
@@ -137,22 +123,5 @@ func (r *contentReadRepository) CountQuotaUnitsByWorkspaceIDInPeriod(
 		"from":        from,
 		"to":          to,
 	}).Scan(&contentCount).Error
-	if err != nil {
-		return 0, err
-	}
-
-	var pendingMedia int64
-	err = r.db.WithContext(ctx).Raw(`
-		SELECT COUNT(*) FROM media
-		JOIN clients ON clients.id = media.client_id
-		WHERE clients.workspace_id = @workspaceID
-		  AND media.status = 'pending_upload'
-		  AND NOT EXISTS (
-			SELECT 1 FROM contents c WHERE c.media_id = media.id
-		  )
-	`, map[string]any{"workspaceID": workspaceID}).Scan(&pendingMedia).Error
-	if err != nil {
-		return 0, err
-	}
-	return contentCount + pendingMedia, nil
+	return contentCount, err
 }

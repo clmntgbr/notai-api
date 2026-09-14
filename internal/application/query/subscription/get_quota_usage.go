@@ -130,6 +130,7 @@ func (h *GetQuotaUsageHandler) buildUsage(
 	}
 
 	return &QuotaUsageView{
+		WorkspaceID: workspaceID,
 		Members: QuotaCounter{
 			Used: membersUsed,
 			Max:  quota.MaxClientMembers,
