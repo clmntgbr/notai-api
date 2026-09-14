@@ -71,7 +71,8 @@ func (h *BillingWebhookHandler) Execute(c fiber.Ctx) error {
 	if err := h.dispatch(ctx, event); err != nil {
 		log.Printf("stripe webhook: failed event id=%s type=%s: %v", event.ID, event.Type, err)
 		if errors.Is(err, cmdsubscription.ErrStripeSubscriptionNotLinked) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			// Ask Stripe to retry after checkout.session.completed links the subscription.
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"message": "subscription not linked yet",
 			})
 		}

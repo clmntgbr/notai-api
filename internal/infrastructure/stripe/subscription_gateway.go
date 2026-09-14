@@ -41,6 +41,35 @@ func (g *SubscriptionGateway) Retrieve(ctx context.Context, subscriptionID strin
 	return ExtractSubscriptionData(sub), nil
 }
 
+func (g *SubscriptionGateway) RetrieveLatestInvoice(
+	ctx context.Context,
+	subscriptionID string,
+) (*port.InvoiceData, error) {
+	if g.secretKey == "" {
+		return nil, fmt.Errorf("stripe secret key is not configured")
+	}
+	if subscriptionID == "" {
+		return nil, nil
+	}
+
+	stripe.Key = g.secretKey
+
+	params := &stripe.InvoiceListParams{
+		Subscription: stripe.String(subscriptionID),
+	}
+	params.Limit = stripe.Int64(1)
+	params.Context = ctx
+
+	iter := invoice.List(params)
+	if iter.Next() {
+		return MapInvoiceData(iter.Invoice()), nil
+	}
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("failed to list subscription invoices: %w", err)
+	}
+	return nil, nil
+}
+
 func (g *SubscriptionGateway) UpdatePrice(
 	ctx context.Context,
 	subscriptionID string,

@@ -16,6 +16,28 @@ type SubscriptionData struct {
 	CurrentPeriodEnd   time.Time
 }
 
+// InvoiceData is a Stripe invoice snapshot used to sync local invoices.
+type InvoiceData struct {
+	ID               string
+	CustomerID       string
+	SubscriptionID   string
+	Number           string
+	Status           string
+	Currency         string
+	AmountDue        int64
+	AmountPaid       int64
+	Total            int64
+	HostedInvoiceURL string
+	InvoicePDF       string
+	BillingReason    string
+	Description      string
+	AttemptCount     int64
+	PeriodStart      time.Time
+	PeriodEnd        time.Time
+	PaidAt           *time.Time
+	CreatedAt        time.Time
+}
+
 type ProrationPreviewLine struct {
 	Description string
 	Amount      int64
@@ -35,6 +57,7 @@ type ProrationPreview struct {
 
 type SubscriptionGateway interface {
 	Retrieve(ctx context.Context, subscriptionID string) (*SubscriptionData, error)
+	RetrieveLatestInvoice(ctx context.Context, subscriptionID string) (*InvoiceData, error)
 	UpdatePrice(
 		ctx context.Context,
 		subscriptionID string,

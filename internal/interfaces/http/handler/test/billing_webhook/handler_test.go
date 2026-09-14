@@ -391,8 +391,8 @@ func TestBillingWebhookHandler_Execute_HandlerError_SubscriptionNotLinked(t *tes
 	event := stripeEvent("invoice.payment_succeeded", sampleInvoicePayload())
 
 	resp := executeWebhook(t, h, event)
-	if resp.StatusCode != fiber.StatusConflict {
-		t.Fatalf("status: got %d want %d", resp.StatusCode, fiber.StatusConflict)
+	if resp.StatusCode != fiber.StatusServiceUnavailable {
+		t.Fatalf("status: got %d want %d", resp.StatusCode, fiber.StatusServiceUnavailable)
 	}
 
 	body := testutil.DecodeJSONMap(t, resp)

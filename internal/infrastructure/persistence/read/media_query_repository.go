@@ -154,6 +154,7 @@ func (r *mediaReadRepository) FindContentsByMediaID(
 func (r *mediaReadRepository) CountStatsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
+	campaignID *uuid.UUID,
 ) (*domainmedia.MediaStats, error) {
 	var row struct {
 		PendingUpload int64
@@ -165,7 +166,7 @@ func (r *mediaReadRepository) CountStatsByClientID(
 		AIGenerated   int64
 		Uncertain     int64
 	}
-	err := r.db.WithContext(ctx).
+	q := r.db.WithContext(ctx).
 		Table("media").
 		Select(`
 			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
@@ -177,18 +178,20 @@ func (r *mediaReadRepository) CountStatsByClientID(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ?", clientID).
-		Scan(&row).Error
+		Where("client_id = ?", clientID)
+	if campaignID != nil {
+		q = q.Where("campaign_id = ?", *campaignID)
+	}
+	if err := q.Scan(&row).Error; err != nil {
+		return nil, err
+	}
+
+	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID, campaignID)
 	if err != nil {
 		return nil, err
 	}
 
-	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID)
-	if err != nil {
-		return nil, err
-	}
-
-	kpis, err := r.countDashboardKPIsByClientID(ctx, clientID)
+	kpis, err := r.countDashboardKPIsByClientID(ctx, clientID, campaignID)
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +213,7 @@ func (r *mediaReadRepository) CountStatsByClientID(
 func (r *mediaReadRepository) countDashboardKPIsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
+	campaignID *uuid.UUID,
 ) (*domainmedia.MediaDashboardKPIs, error) {
 	now := time.Now().UTC()
 	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
@@ -225,6 +229,17 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 		PrevHuman         int64
 		PrevAIGenerated   int64
 		PrevUncertain     int64
+	}
+	params := map[string]any{
+		"clientID":  clientID,
+		"thisStart": thisStart,
+		"prevStart": prevStart,
+		"nextStart": nextStart,
+	}
+	campaignFilter := ""
+	if campaignID != nil {
+		campaignFilter = " AND campaign_id = @campaignID"
+		params["campaignID"] = *campaignID
 	}
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
@@ -267,13 +282,8 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 				  AND verdict->>'label' = 'uncertain'
 			) AS prev_uncertain
 		FROM media
-		WHERE client_id = @clientID
-	`, map[string]any{
-		"clientID":  clientID,
-		"thisStart": thisStart,
-		"prevStart": prevStart,
-		"nextStart": nextStart,
-	}).Scan(&row).Error
+		WHERE client_id = @clientID`+campaignFilter+`
+	`, params).Scan(&row).Error
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +293,8 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 	err = r.db.WithContext(ctx).Raw(`
 		SELECT q.max_verifications_per_month
 		FROM clients c
-		JOIN subscriptions s ON s.id = c.subscription_id
+		JOIN workspaces w ON w.id = c.workspace_id
+		JOIN subscriptions s ON s.id = w.subscription_id
 		JOIN plans p ON p.id = s.plan_id
 		JOIN quotas q ON q.id = p.quota_id
 		WHERE c.id = @clientID
@@ -340,6 +351,7 @@ func round1(v float64) float64 {
 func (r *mediaReadRepository) countMonthlyControlsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
+	campaignID *uuid.UUID,
 ) ([]domainmedia.MediaMonthlyStats, error) {
 	now := time.Now().UTC()
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
@@ -355,7 +367,7 @@ func (r *mediaReadRepository) countMonthlyControlsByClientID(
 		AIGenerated   int64
 		Uncertain     int64
 	}
-	err := r.db.WithContext(ctx).
+	q := r.db.WithContext(ctx).
 		Table("media").
 		Select(`
 			to_char(date_trunc('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
@@ -368,10 +380,11 @@ func (r *mediaReadRepository) countMonthlyControlsByClientID(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ? AND created_at >= ?", clientID, start).
-		Group("month").
-		Order("month ASC").
-		Scan(&rows).Error
+		Where("client_id = ? AND created_at >= ?", clientID, start)
+	if campaignID != nil {
+		q = q.Where("campaign_id = ?", *campaignID)
+	}
+	err := q.Group("month").Order("month ASC").Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}

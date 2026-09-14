@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"go-api/internal/domain/plan"
@@ -25,6 +26,7 @@ type CheckoutCompletedHandler struct {
 	subscriptionRepo    domainsubscription.SubscriptionWriteRepository
 	outbox              port.OutboxRepository
 	subscriptionGateway port.SubscriptionGateway
+	upsertInvoice       *UpsertInvoiceHandler
 }
 
 func NewCheckoutCompletedHandler(
@@ -33,6 +35,7 @@ func NewCheckoutCompletedHandler(
 	subscriptionRepo domainsubscription.SubscriptionWriteRepository,
 	outbox port.OutboxRepository,
 	subscriptionGateway port.SubscriptionGateway,
+	upsertInvoice *UpsertInvoiceHandler,
 ) *CheckoutCompletedHandler {
 	return &CheckoutCompletedHandler{
 		workspaceRepo:       workspaceRepo,
@@ -40,6 +43,7 @@ func NewCheckoutCompletedHandler(
 		subscriptionRepo:    subscriptionRepo,
 		outbox:              outbox,
 		subscriptionGateway: subscriptionGateway,
+		upsertInvoice:       upsertInvoice,
 	}
 }
 
@@ -111,7 +115,7 @@ func (h *CheckoutCompletedHandler) Handle(ctx context.Context, cmd CheckoutCompl
 		}
 	}
 
-	return h.workspaceRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+	if err := h.workspaceRepo.WithTransaction(ctx, func(txCtx context.Context) error {
 		if subscriptionEntity == nil {
 			subscriptionEntity = domainsubscription.NewSubscription(targetPlan.ID, status, startDate, endDate)
 			subscriptionEntity.ApplyUpdate(
@@ -157,5 +161,66 @@ func (h *CheckoutCompletedHandler) Handle(ctx context.Context, cmd CheckoutCompl
 		}
 
 		return h.outbox.StoreEvents(txCtx, events)
-	})
+	}); err != nil {
+		return err
+	}
+
+	// invoice.payment_succeeded often arrives before checkout.session.completed.
+	// Sync the latest Stripe invoice now so local billing is complete even when
+	// the earlier webhook returned "subscription not linked yet" (no reliable retry on stripe listen).
+	return h.syncLatestInvoice(ctx, cmd.StripeSubscriptionID)
+}
+
+func (h *CheckoutCompletedHandler) syncLatestInvoice(ctx context.Context, stripeSubscriptionID string) error {
+	if h.upsertInvoice == nil || h.subscriptionGateway == nil {
+		return nil
+	}
+
+	invoiceData, err := h.subscriptionGateway.RetrieveLatestInvoice(ctx, stripeSubscriptionID)
+	if err != nil {
+		return err
+	}
+	if invoiceData == nil || invoiceData.ID == "" {
+		log.Printf(
+			"checkout completed: no invoice found yet for stripeSubscriptionID=%s",
+			stripeSubscriptionID,
+		)
+		return nil
+	}
+
+	cmd := UpsertInvoiceCommand{
+		StripeInvoiceID:      invoiceData.ID,
+		StripeCustomerID:     invoiceData.CustomerID,
+		StripeSubscriptionID: invoiceData.SubscriptionID,
+		Number:               invoiceData.Number,
+		Status:               invoiceData.Status,
+		Currency:             invoiceData.Currency,
+		AmountDue:            invoiceData.AmountDue,
+		AmountPaid:           invoiceData.AmountPaid,
+		Total:                invoiceData.Total,
+		HostedInvoiceURL:     invoiceData.HostedInvoiceURL,
+		InvoicePDF:           invoiceData.InvoicePDF,
+		BillingReason:        invoiceData.BillingReason,
+		Description:          invoiceData.Description,
+		AttemptCount:         invoiceData.AttemptCount,
+		PeriodStart:          invoiceData.PeriodStart,
+		PeriodEnd:            invoiceData.PeriodEnd,
+		PaidAt:               invoiceData.PaidAt,
+		StripeCreatedAt:      invoiceData.CreatedAt,
+		StripeEventID:        "checkout.session.completed:" + stripeSubscriptionID,
+	}
+	if invoiceData.SubscriptionID == "" {
+		cmd.StripeSubscriptionID = stripeSubscriptionID
+	}
+	if invoiceData.Status == "paid" {
+		cmd.PaymentOutcome = "succeeded"
+	}
+
+	log.Printf(
+		"checkout completed: syncing latest invoice stripeInvoiceID=%s stripeSubscriptionID=%s status=%s",
+		cmd.StripeInvoiceID,
+		cmd.StripeSubscriptionID,
+		cmd.Status,
+	)
+	return h.upsertInvoice.Handle(ctx, cmd)
 }

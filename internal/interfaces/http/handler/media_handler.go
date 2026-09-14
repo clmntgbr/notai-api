@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
 
 	mediacmd "go-api/internal/application/command/media"
 	querymedia "go-api/internal/application/query/media"
@@ -174,8 +175,18 @@ func (h *MediaHandler) Stats(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
 	}
 
+	var campaignID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("campaignId")); raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
+		}
+		campaignID = &parsed
+	}
+
 	stats, err := h.statsHandler.Handle(c.Context(), querymedia.GetStatsByClientQuery{
-		ClientID: clientID,
+		ClientID:   clientID,
+		CampaignID: campaignID,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to get media stats"})

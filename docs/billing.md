@@ -38,6 +38,8 @@ Stripe drives checkout, portal, and invoice sync. Free plan is assigned on user 
 
 Checkout uses `client_reference_id` = **workspace UUID**.
 
+`invoice.payment_succeeded` often arrives before `checkout.session.completed`. Early invoice upserts return `503` (retry). After checkout links the subscription, the handler also pulls the latest Stripe invoice so the first paid invoice is stored even when the early webhook was dropped (e.g. `stripe listen`).
+
 ## Quotas
 
 Enforced inside application commands (not HTTP middleware). Handlers map quota errors with `respondQuotaError` → HTTP `403`.
@@ -57,7 +59,7 @@ Enforced inside application commands (not HTTP middleware). Handlers map quota e
 
 If `overage_price_cents > 0`, verification overage is allowed (no Stripe overage billing in v1). Free plan has `0` → hard block.
 
-`GET /api/medias/stats` → `kpis.planIncluded` comes from `max_verifications_per_month`.
+`GET /api/medias/stats` → `kpis.planIncluded` comes from `max_verifications_per_month` (workspace plan, always global). Optional `?campaignId=` scopes status/KPI/monthly counts to that campaign; omit it for client-wide stats.
 
 ## Config
 

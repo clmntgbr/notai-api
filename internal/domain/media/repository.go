@@ -26,7 +26,7 @@ type MediaReadRepository interface {
 		query paginate.PaginateQuery,
 	) ([]MediaView, int64, error)
 	FindContentsByMediaID(ctx context.Context, mediaID uuid.UUID) ([]ContentChildView, error)
-	CountStatsByClientID(ctx context.Context, clientID uuid.UUID) (*MediaStats, error)
+	CountStatsByClientID(ctx context.Context, clientID uuid.UUID, campaignID *uuid.UUID) (*MediaStats, error)
 }
 
 type MediaStats struct {

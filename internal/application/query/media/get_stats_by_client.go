@@ -10,7 +10,8 @@ import (
 )
 
 type GetStatsByClientQuery struct {
-	ClientID uuid.UUID
+	ClientID   uuid.UUID
+	CampaignID *uuid.UUID // nil = all campaigns for the client
 }
 
 type GetStatsByClientHandler struct {
@@ -28,7 +29,7 @@ func (h *GetStatsByClientHandler) Handle(
 	if q.ClientID == uuid.Nil {
 		return nil, fmt.Errorf("clientId is required")
 	}
-	stats, err := h.mediaRepo.CountStatsByClientID(ctx, q.ClientID)
+	stats, err := h.mediaRepo.CountStatsByClientID(ctx, q.ClientID, q.CampaignID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get media stats: %w", err)
 	}

@@ -225,12 +225,19 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	)
 	listInvoicesHandler := queryinvoice.NewListInvoicesHandler(invoiceReadRepo)
 
+	upsertInvoiceHandler := subscriptioncmd.NewUpsertInvoiceHandler(
+		invoiceWriteRepo,
+		subscriptionWriteRepo,
+		workspaceWriteRepo,
+		outboxRepo,
+	)
 	checkoutCompletedHandler := subscriptioncmd.NewCheckoutCompletedHandler(
 		workspaceWriteRepo,
 		planWriteRepo,
 		subscriptionWriteRepo,
 		outboxRepo,
 		subscriptionGateway,
+		upsertInvoiceHandler,
 	)
 	subscriptionUpdatedHandler := subscriptioncmd.NewSubscriptionUpdatedHandler(
 		planWriteRepo,
@@ -248,12 +255,6 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	)
 	invoicePaymentFailedHandler := subscriptioncmd.NewInvoicePaymentFailedHandler(
 		subscriptionWriteRepo,
-		outboxRepo,
-	)
-	upsertInvoiceHandler := subscriptioncmd.NewUpsertInvoiceHandler(
-		invoiceWriteRepo,
-		subscriptionWriteRepo,
-		workspaceWriteRepo,
 		outboxRepo,
 	)
 	renewalUpcomingHandler := subscriptioncmd.NewSubscriptionRenewalUpcomingHandler(

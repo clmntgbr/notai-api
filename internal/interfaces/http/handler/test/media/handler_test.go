@@ -539,6 +539,9 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 	if !stats.called || stats.query.ClientID != testutil.TestClientID {
 		t.Fatalf("stats query: %+v", stats.query)
 	}
+	if stats.query.CampaignID != nil {
+		t.Fatalf("expected nil campaignId, got %v", stats.query.CampaignID)
+	}
 	body := testutil.DecodeJSONMap(t, resp)
 	if body["pendingUpload"] != float64(1) || body["uploaded"] != float64(2) ||
 		body["processing"] != float64(3) || body["analyzed"] != float64(4) ||
@@ -565,6 +568,46 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 		kpis["aiGeneratedSharePercent"] != 4.0 ||
 		kpis["planIncluded"] != nil {
 		t.Fatalf("kpis: %#v", kpis)
+	}
+}
+
+func TestMediaHandler_Stats_WithCampaignID(t *testing.T) {
+	stats := &mockMediaStatsHandler{
+		stats: &domainmedia.MediaStats{},
+	}
+	h := newMediaHandler(nil, nil, nil, stats, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias/stats?campaignId="+testutil.TestCampaignID.String(),
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !stats.called || stats.query.ClientID != testutil.TestClientID {
+		t.Fatalf("stats query: %+v", stats.query)
+	}
+	if stats.query.CampaignID == nil || *stats.query.CampaignID != testutil.TestCampaignID {
+		t.Fatalf("campaignId: got %v want %s", stats.query.CampaignID, testutil.TestCampaignID)
+	}
+}
+
+func TestMediaHandler_Stats_InvalidCampaignID(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats?campaignId=not-a-uuid", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }
 
