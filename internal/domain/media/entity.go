@@ -325,6 +325,39 @@ func (m *Media) MarkFailed(reason string) error {
 	return nil
 }
 
+// Touch bumps updated_at without changing status (scheduler heartbeat after requeue).
+func (m *Media) Touch(at time.Time) {
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	m.UpdatedAt = at.UTC()
+}
+
+// RequeueUploaded re-emits media.uploaded.v1 so frame extraction / upload pipeline can resume.
+func (m *Media) RequeueUploaded() error {
+	if m.Status != StatusProcessing {
+		return ErrInvalidTransition
+	}
+	now := time.Now().UTC()
+	m.UpdatedAt = now
+	sizeBytes := int64(0)
+	if m.SizeBytes != nil {
+		sizeBytes = *m.SizeBytes
+	}
+	m.recordEvent(MediaUploaded{
+		ID:         uuid.New().String(),
+		MediaID:    m.ID.String(),
+		CampaignID: m.CampaignID.String(),
+		ClientID:   m.ClientID.String(),
+		MediaType:  string(m.MediaType),
+		ObjectKey:  m.ObjectKey,
+		SizeBytes:  sizeBytes,
+		Status:     string(m.Status),
+		Timestamp:  now,
+	})
+	return nil
+}
+
 func (m *Media) recordStatusChanged(at time.Time) {
 	label := ""
 	if m.Verdict != nil {

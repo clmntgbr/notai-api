@@ -46,8 +46,8 @@ Enforced inside application commands (not HTTP middleware). Handlers map quota e
 |-------|-------------|
 | `max_client_members` | `POST /api/clients/:id/members` — counted on the **target client** |
 | `max_campaigns` | create campaign — counted across **all clients in the workspace** |
-| `max_verifications_per_month` | media presign (reserve) + content analyze — workspace-wide |
-| `max_concurrent_analyses` | content analyze start — workspace-wide |
+| `max_verifications_per_month` | content analyze (before analysis starts) — workspace-wide; upload/presign is not blocked |
+| `max_concurrent_analyses` | content analyze start — workspace-wide (soft retry / deferred) |
 | `max_file_size_mb` | media process upload |
 | `allows_video_analysis` | media presign / process upload |
 

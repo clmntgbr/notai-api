@@ -78,7 +78,6 @@ func (h *PresignMediaHandler) Handle(
 	}
 
 	normalized := make([]PresignFileInput, 0, len(cmd.Files))
-	verificationUnits := 0
 	for _, file := range cmd.Files {
 		filename := filepath.Base(strings.TrimSpace(file.Filename))
 		if err := domainmedia.ValidateFilename(filename); err != nil {
@@ -88,21 +87,17 @@ func (h *PresignMediaHandler) Handle(
 		if err != nil {
 			return nil, err
 		}
+		// Plan capability checks only (e.g. video allowed). Monthly verification quota is
+		// enforced later in analysis — uploads must still succeed when the plan is exhausted.
 		if h.quota != nil {
 			if err := h.quota.AssertMediaUpload(ctx, cmd.ClientID, mediaType, nil); err != nil {
 				return nil, err
 			}
 		}
-		verificationUnits++
 		normalized = append(normalized, PresignFileInput{
 			Filename:    filename,
 			ContentType: strings.TrimSpace(file.ContentType),
 		})
-	}
-	if h.quota != nil {
-		if err := h.quota.AssertVerificationReserve(ctx, cmd.ClientID, verificationUnits); err != nil {
-			return nil, err
-		}
 	}
 
 	created := make([]*domainmedia.Media, 0, len(normalized))

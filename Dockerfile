@@ -59,6 +59,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -a -installsuffix cgo \
     -ldflags="-w -s" \
+    -o scheduler \
+    ./cmd/scheduler
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -a -installsuffix cgo \
+    -ldflags="-w -s" \
     -o cli \
     ./cmd/cli
 
@@ -79,6 +85,7 @@ COPY --from=builder --chown=appuser:appuser /app/api .
 COPY --from=builder --chown=appuser:appuser /app/worker .
 COPY --from=builder --chown=appuser:appuser /app/analysis .
 COPY --from=builder --chown=appuser:appuser /app/frameextraction .
+COPY --from=builder --chown=appuser:appuser /app/scheduler .
 COPY --from=builder --chown=appuser:appuser /app/cli .
 
 USER appuser

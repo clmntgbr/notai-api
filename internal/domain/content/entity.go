@@ -271,3 +271,28 @@ func (c *Content) recordStatusChanged(at time.Time) {
 func (c *Content) IsTerminal() bool {
 	return c.Status == StatusAnalyzed || c.Status == StatusFailed
 }
+
+// RequeueAnalysis emits a fresh content.uploaded.v1 so the analysis worker resumes work.
+func (c *Content) RequeueAnalysis() {
+	now := time.Now().UTC()
+	c.UpdatedAt = now
+	thumb := ""
+	if c.ThumbnailKey != nil {
+		thumb = *c.ThumbnailKey
+	}
+	sizeBytes := int64(0)
+	if c.SizeBytes != nil {
+		sizeBytes = *c.SizeBytes
+	}
+	c.recordEvent(ContentUploaded{
+		ID:           uuid.New().String(),
+		ContentID:    c.ID.String(),
+		MediaID:      c.MediaID.String(),
+		CampaignID:   c.CampaignID.String(),
+		ClientID:     c.ClientID.String(),
+		ObjectKey:    c.ObjectKey,
+		ThumbnailKey: thumb,
+		SizeBytes:    sizeBytes,
+		Timestamp:    now,
+	})
+}

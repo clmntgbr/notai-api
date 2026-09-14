@@ -49,6 +49,23 @@ func (r *memMediaRepo) GetByObjectKey(ctx context.Context, objectKey string) (*d
 	return nil, nil
 }
 
+func (r *memMediaRepo) ListProcessingUpdatedBefore(
+	_ context.Context,
+	before time.Time,
+	limit int,
+) ([]*domainmedia.Media, error) {
+	out := make([]*domainmedia.Media, 0)
+	for _, m := range r.byID {
+		if m.Status == domainmedia.StatusProcessing && m.UpdatedAt.Before(before) {
+			out = append(out, cloneMedia(m))
+			if limit > 0 && len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 func cloneMedia(m *domainmedia.Media) *domainmedia.Media {
 	cp := *m
 	return &cp

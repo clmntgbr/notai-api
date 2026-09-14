@@ -3,6 +3,7 @@ package write
 import (
 	"context"
 	"errors"
+	"time"
 
 	domainmedia "go-api/internal/domain/media"
 
@@ -57,4 +58,28 @@ func (r *mediaWriteRepository) GetByObjectKey(
 		return nil, err
 	}
 	return mediaDomainFromModel(&model), nil
+}
+
+func (r *mediaWriteRepository) ListProcessingUpdatedBefore(
+	ctx context.Context,
+	before time.Time,
+	limit int,
+) ([]*domainmedia.Media, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var models []MediaModel
+	err := DBWithContext(ctx, r.db).
+		Where("status = ? AND updated_at < ?", string(domainmedia.StatusProcessing), before.UTC()).
+		Order("updated_at ASC").
+		Limit(limit).
+		Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*domainmedia.Media, 0, len(models))
+	for i := range models {
+		out = append(out, mediaDomainFromModel(&models[i]))
+	}
+	return out, nil
 }
