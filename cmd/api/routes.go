@@ -41,7 +41,6 @@ func setupAPIRoutes(app *fiber.App, container *di.Container) {
 
 	protected := public.Group("", container.AuthenticateMiddleware.Protected())
 	setupUserRoutes(protected, container)
-	setupWorkspaceRoutes(protected, container)
 	setupClientRoutes(protected, container)
 	setupCampaignRoutes(protected, container)
 	setupMediaRoutes(protected, container)
@@ -74,10 +73,6 @@ func setupRealtimeRoutes(api fiber.Router, container *di.Container) {
 func setupUserRoutes(api fiber.Router, container *di.Container) {
 	api.Get("/users/me", container.UserHandler.GetUser)
 	api.Put("/users/me/current-client", container.UserHandler.SetCurrentClient)
-}
-
-func setupWorkspaceRoutes(api fiber.Router, container *di.Container) {
-	api.Get("/workspaces/me", container.WorkspaceHandler.GetMe)
 }
 
 func setupClientRoutes(api fiber.Router, container *di.Container) {

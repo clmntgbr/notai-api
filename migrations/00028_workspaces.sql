@@ -3,7 +3,6 @@
 
 CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
     owner_user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     subscription_id UUID NULL REFERENCES subscriptions (id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -53,7 +52,6 @@ END $$;
 WITH client_owners AS (
     SELECT
         c.id AS client_id,
-        c.name AS client_name,
         c.subscription_id,
         c.created_at,
         c.updated_at,
@@ -85,10 +83,9 @@ ranked AS (
     FROM client_owners
     WHERE owner_user_id IS NOT NULL
 )
-INSERT INTO workspaces (id, name, owner_user_id, subscription_id, created_at, updated_at)
+INSERT INTO workspaces (id, owner_user_id, subscription_id, created_at, updated_at)
 SELECT
     gen_random_uuid(),
-    client_name,
     owner_user_id,
     subscription_id,
     created_at,
@@ -98,10 +95,9 @@ WHERE owner_rank = 1
 ON CONFLICT (owner_user_id) DO NOTHING;
 
 -- Users with no client yet still get an owned workspace (1 workspace / user).
-INSERT INTO workspaces (id, name, owner_user_id, subscription_id, created_at, updated_at)
+INSERT INTO workspaces (id, owner_user_id, subscription_id, created_at, updated_at)
 SELECT
     gen_random_uuid(),
-    'Personal',
     u.id,
     NULL,
     NOW(),

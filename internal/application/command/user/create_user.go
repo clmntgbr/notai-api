@@ -61,8 +61,7 @@ func (h *CreateUserHandler) Handle(ctx context.Context, cmd CreateUserCommand) (
 			return err
 		}
 
-		workspaceName := personalWorkspaceName(cmd.FirstName, cmd.LastName)
-		workspace := domainworkspace.NewWorkspace(workspaceName, u.ID)
+		workspace := domainworkspace.NewWorkspace(u.ID)
 
 		freePlan, err := h.planRepo.GetBySlug(txCtx, domainplan.FreePlanSlug)
 		if err != nil || freePlan == nil {
@@ -118,18 +117,5 @@ func personalClientName(firstName, lastName string) string {
 		return fmt.Sprintf("%s's Client", firstName)
 	default:
 		return "Personal Client"
-	}
-}
-
-func personalWorkspaceName(firstName, lastName string) string {
-	firstName = strings.TrimSpace(firstName)
-	lastName = strings.TrimSpace(lastName)
-	switch {
-	case firstName != "" && lastName != "":
-		return fmt.Sprintf("%s %s", firstName, lastName)
-	case firstName != "":
-		return fmt.Sprintf("%s's Workspace", firstName)
-	default:
-		return "Personal Workspace"
 	}
 }

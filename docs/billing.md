@@ -14,12 +14,6 @@ Stripe drives checkout, portal, and invoice sync. Free plan is assigned on user 
 |--------|------|------|-------------|
 | `GET` | `/api/plans` | No | List active plans with embedded quotas |
 
-### Workspace (JWT)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/workspaces/me` | Owned workspace for the authenticated user |
-
 ### Subscription & quota (JWT + current client)
 
 | Method | Path | Description |

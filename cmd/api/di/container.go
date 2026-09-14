@@ -20,7 +20,6 @@ import (
 	queryplan "go-api/internal/application/query/plan"
 	querysubscription "go-api/internal/application/query/subscription"
 	queryuser "go-api/internal/application/query/user"
-	queryworkspace "go-api/internal/application/query/workspace"
 	"go-api/internal/infrastructure/centrifugo"
 	infraClerk "go-api/internal/infrastructure/clerk"
 	"go-api/internal/infrastructure/config"
@@ -45,7 +44,6 @@ type Container struct {
 	MediaUploadWebhookHandler    *httphandler.MediaUploadWebhookHandler
 	BillingWebhookHandler        *httphandler.BillingWebhookHandler
 	UserHandler                  *httphandler.UserHandler
-	WorkspaceHandler             *httphandler.WorkspaceHandler
 	ClientHandler                *httphandler.ClientHandler
 	CampaignHandler              *httphandler.CampaignHandler
 	MediaHandler                 *httphandler.MediaHandler
@@ -125,7 +123,6 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	removeClientMemberHandler := clientcmd.NewRemoveClientMemberHandler(clientWriteRepo, userWriteRepo, outboxRepo)
 	getClientByIDHandler := queryclient.NewGetClientByIDHandler(clientReadRepo)
 	listClientsByUserHandler := queryclient.NewListClientsByUserHandler(clientReadRepo)
-	getOwnedWorkspaceHandler := queryworkspace.NewGetOwnedWorkspaceHandler(workspaceReadRepo)
 
 	getQuotaUsageHandler := querysubscription.NewGetQuotaUsageHandler(
 		clientReadRepo,
@@ -297,7 +294,6 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 			paymentMethodExpiringHandler,
 		),
 		UserHandler: httphandler.NewUserHandler(getUserByIDHandler, setCurrentClientHandler),
-		WorkspaceHandler: httphandler.NewWorkspaceHandler(getOwnedWorkspaceHandler),
 		ClientHandler: httphandler.NewClientHandler(
 			createClientHandler,
 			updateClientHandler,

@@ -10,7 +10,6 @@ import (
 
 type Workspace struct {
 	ID             uuid.UUID
-	Name           string
 	OwnerUserID    uuid.UUID
 	SubscriptionID *uuid.UUID
 	CreatedAt      time.Time
@@ -19,11 +18,10 @@ type Workspace struct {
 	events []event.DomainEvent
 }
 
-func NewWorkspace(name string, ownerUserID uuid.UUID) *Workspace {
+func NewWorkspace(ownerUserID uuid.UUID) *Workspace {
 	now := time.Now().UTC()
 	w := &Workspace{
 		ID:          uuid.New(),
-		Name:        name,
 		OwnerUserID: ownerUserID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -31,7 +29,6 @@ func NewWorkspace(name string, ownerUserID uuid.UUID) *Workspace {
 	w.recordEvent(WorkspaceCreated{
 		ID:          uuid.New().String(),
 		WorkspaceID: w.ID.String(),
-		Name:        w.Name,
 		OwnerUserID: w.OwnerUserID.String(),
 		Timestamp:   now,
 	})

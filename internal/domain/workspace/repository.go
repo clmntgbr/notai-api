@@ -19,12 +19,10 @@ type WorkspaceWriteRepository interface {
 
 type WorkspaceReadRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*WorkspaceView, error)
-	FindByOwnerUserID(ctx context.Context, ownerUserID uuid.UUID) (*WorkspaceView, error)
 }
 
 type WorkspaceView struct {
 	ID             uuid.UUID
-	Name           string
 	OwnerUserID    uuid.UUID
 	SubscriptionID *uuid.UUID
 	CreatedAt      time.Time

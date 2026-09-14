@@ -13,7 +13,6 @@ import (
 
 type workspaceRow struct {
 	ID             uuid.UUID
-	Name           string
 	OwnerUserID    uuid.UUID
 	SubscriptionID *uuid.UUID
 	CreatedAt      time.Time
@@ -36,26 +35,8 @@ func (r *workspaceReadRepository) FindByID(
 ) (*domainworkspace.WorkspaceView, error) {
 	var row workspaceRow
 	err := r.db.WithContext(ctx).
-		Select("id", "name", "owner_user_id", "subscription_id", "created_at", "updated_at").
+		Select("id", "owner_user_id", "subscription_id", "created_at", "updated_at").
 		First(&row, "id = ?", id).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return toWorkspaceView(row), nil
-}
-
-func (r *workspaceReadRepository) FindByOwnerUserID(
-	ctx context.Context,
-	ownerUserID uuid.UUID,
-) (*domainworkspace.WorkspaceView, error) {
-	var row workspaceRow
-	err := r.db.WithContext(ctx).
-		Select("id", "name", "owner_user_id", "subscription_id", "created_at", "updated_at").
-		Where("owner_user_id = ?", ownerUserID).
-		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -68,7 +49,6 @@ func (r *workspaceReadRepository) FindByOwnerUserID(
 func toWorkspaceView(row workspaceRow) *domainworkspace.WorkspaceView {
 	return &domainworkspace.WorkspaceView{
 		ID:             row.ID,
-		Name:           row.Name,
 		OwnerUserID:    row.OwnerUserID,
 		SubscriptionID: row.SubscriptionID,
 		CreatedAt:      row.CreatedAt,

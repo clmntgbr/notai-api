@@ -14,7 +14,6 @@ const (
 type WorkspaceCreated struct {
 	ID          string    `json:"eventId"`
 	WorkspaceID string    `json:"workspaceId"`
-	Name        string    `json:"name"`
 	OwnerUserID string    `json:"ownerUserId"`
 	Timestamp   time.Time `json:"timestamp"`
 }

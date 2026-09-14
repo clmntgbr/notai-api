@@ -10,7 +10,6 @@ import (
 
 type WorkspaceModel struct {
 	ID             uuid.UUID  `gorm:"column:id;primaryKey"`
-	Name           string     `gorm:"column:name"`
 	OwnerUserID    uuid.UUID  `gorm:"column:owner_user_id"`
 	SubscriptionID *uuid.UUID `gorm:"column:subscription_id"`
 	CreatedAt      time.Time  `gorm:"column:created_at"`
@@ -24,7 +23,6 @@ func (WorkspaceModel) TableName() string {
 func workspaceModelFromDomain(w *domainworkspace.Workspace) *WorkspaceModel {
 	return &WorkspaceModel{
 		ID:             w.ID,
-		Name:           w.Name,
 		OwnerUserID:    w.OwnerUserID,
 		SubscriptionID: w.SubscriptionID,
 		CreatedAt:      w.CreatedAt,
@@ -35,7 +33,6 @@ func workspaceModelFromDomain(w *domainworkspace.Workspace) *WorkspaceModel {
 func workspaceDomainFromModel(m *WorkspaceModel) *domainworkspace.Workspace {
 	return &domainworkspace.Workspace{
 		ID:             m.ID,
-		Name:           m.Name,
 		OwnerUserID:    m.OwnerUserID,
 		SubscriptionID: m.SubscriptionID,
 		CreatedAt:      m.CreatedAt,
