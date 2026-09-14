@@ -95,6 +95,24 @@ func (p *Projector) OnMediaVerdictRendered(ctx context.Context, payload []byte) 
 		filename = view.Filename
 	}
 
+	if domainmedia.Status(evt.Status) == domainmedia.StatusFailed {
+		return p.insert(ctx, &domainactivity.Event{
+			ID:        eventID,
+			ClientID:  clientID,
+			Type:      domainactivity.TypeMediaFailed,
+			ActorType: domainactivity.ActorTypeSystem,
+			ActorName: domainactivity.ActorNameSystem,
+			Message:   fmt.Sprintf("“%s” failed during processing", filename),
+			Payload: map[string]any{
+				"mediaId":    evt.MediaID,
+				"campaignId": evt.CampaignID,
+				"filename":   filename,
+				"status":     evt.Status,
+			},
+			OccurredAt: evt.Timestamp,
+		})
+	}
+
 	var activityType, message string
 	switch domaincontent.Label(evt.Label) {
 	case domaincontent.LabelAIGenerated:

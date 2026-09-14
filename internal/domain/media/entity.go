@@ -310,7 +310,15 @@ func (m *Media) MarkFailed(reason string) error {
 	now := time.Now().UTC()
 	m.Status = StatusFailed
 	m.UpdatedAt = now
-	m.recordStatusChanged(now)
+	// Terminal outcome — same realtime contract as a successful verdict (media.verdict_rendered).
+	m.recordEvent(MediaVerdictRendered{
+		ID:         uuid.New().String(),
+		MediaID:    m.ID.String(),
+		CampaignID: m.CampaignID.String(),
+		ClientID:   m.ClientID.String(),
+		Status:     string(StatusFailed),
+		Timestamp:  now,
+	})
 	_ = reason
 	return nil
 }

@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// PublishRealtimeHandler emits one Centrifugo event per meaningful media
-// transition. Upload and processing/failure use status_changed; the terminal
-// aggregate verdict uses verdict_rendered (not a second status_changed).
+// PublishRealtimeHandler emits Centrifugo events only for:
+// create (upload_requested), uploaded, analyzing (processing), and terminal
+// outcomes via verdict_rendered (analyzed or failed).
 type PublishRealtimeHandler struct {
 	publisher  *realtime.Publisher
 	clientRepo domainclient.ClientReadRepository
@@ -44,7 +44,6 @@ func (h *PublishRealtimeHandler) OnUploaded(ctx context.Context, payload []byte)
 	if err := json.Unmarshal(payload, &evt); err != nil {
 		return messaging.NonRetryable(err)
 	}
-	// Single transition event (no parallel media.updated).
 	return h.publishToClientMembers(ctx, realtime.ActionStatusChanged, evt.ClientID, evt)
 }
 
@@ -52,6 +51,10 @@ func (h *PublishRealtimeHandler) OnStatusChanged(ctx context.Context, payload []
 	var evt domainmedia.MediaStatusChanged
 	if err := json.Unmarshal(payload, &evt); err != nil {
 		return messaging.NonRetryable(err)
+	}
+	// Only "analyzing" (domain status processing). Failed/analyzed use verdict_rendered.
+	if domainmedia.Status(evt.Status) != domainmedia.StatusProcessing {
+		return nil
 	}
 	return h.publishToClientMembers(ctx, realtime.ActionStatusChanged, evt.ClientID, evt)
 }
