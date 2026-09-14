@@ -42,28 +42,61 @@ type MediaCampaignResponse struct {
 }
 
 type MediaContentChildResponse struct {
-	ID           string  `json:"id"`
-	FrameIndex   *int    `json:"frameIndex,omitempty"`
-	TimestampMs  *int64  `json:"timestampMs,omitempty"`
-	Status       string  `json:"status"`
-	ThumbnailURL *string `json:"thumbnailUrl,omitempty"`
-	Verdict      *struct {
-		Label      string  `json:"label"`
-		Confidence float64 `json:"confidence"`
-	} `json:"verdict,omitempty"`
+	ID           string                               `json:"id"`
+	MediaID      string                               `json:"mediaId"`
+	FrameIndex   *int                                 `json:"frameIndex,omitempty"`
+	TimestampMs  *int64                               `json:"timestampMs,omitempty"`
+	ObjectKey    string                               `json:"objectKey"`
+	SizeBytes    *int64                               `json:"sizeBytes,omitempty"`
+	Status       string                               `json:"status"`
+	ThumbnailURL *string                              `json:"thumbnailUrl,omitempty"`
+	CreatedAt    time.Time                            `json:"createdAt"`
+	UpdatedAt    time.Time                            `json:"updatedAt"`
+	Verdict      *MediaContentVerdictResponse         `json:"verdict,omitempty"`
+	Analysis     []MediaContentAnalysisResultResponse `json:"analysis"`
+}
+
+type MediaContentVerdictResponse struct {
+	Label      string                       `json:"label"`
+	Confidence float64                      `json:"confidence"`
+	Signals    []MediaContentSignalResponse `json:"signals"`
+}
+
+type MediaContentAnalysisResultResponse struct {
+	ID             string                       `json:"id"`
+	DetectorName   string                       `json:"detectorName"`
+	Status         string                       `json:"status"`
+	Error          string                       `json:"error,omitempty"`
+	Signals        []MediaContentSignalResponse `json:"signals"`
+	StartedAt      time.Time                    `json:"startedAt"`
+	CompletedAt    time.Time                    `json:"completedAt"`
+	RulesetVersion *int                         `json:"rulesetVersion,omitempty"`
+}
+
+type MediaContentSignalResponse struct {
+	Type        string  `json:"type"`
+	Code        string  `json:"code"`
+	Description string  `json:"description"`
+	Weight      float64 `json:"weight"`
 }
 
 type MediaDetailResponse struct {
-	ID         string                      `json:"id"`
-	CampaignID string                      `json:"campaignId"`
-	Filename   string                      `json:"filename"`
-	MediaType  string                      `json:"mediaType"`
-	Status     string                      `json:"status"`
-	Verdict    *MediaVerdictResponse       `json:"verdict,omitempty"`
-	Contents   []MediaContentChildResponse `json:"contents"`
-	CreatedAt  time.Time                   `json:"createdAt"`
-	UpdatedAt  time.Time                   `json:"updatedAt"`
-	AnalyzedAt *time.Time                  `json:"analyzedAt,omitempty"`
+	ID           string                      `json:"id"`
+	CampaignID   string                      `json:"campaignId"`
+	ClientID     string                      `json:"clientId"`
+	Filename     string                      `json:"filename"`
+	ContentType  string                      `json:"contentType"`
+	MediaType    string                      `json:"mediaType"`
+	ObjectKey    string                      `json:"objectKey"`
+	SizeBytes    *int64                      `json:"sizeBytes,omitempty"`
+	Status       string                      `json:"status"`
+	Verdict      *MediaVerdictResponse       `json:"verdict,omitempty"`
+	ThumbnailURL *string                     `json:"thumbnailUrl,omitempty"`
+	Campaign     *MediaCampaignResponse      `json:"campaign,omitempty"`
+	Contents     []MediaContentChildResponse `json:"contents"`
+	CreatedAt    time.Time                   `json:"createdAt"`
+	UpdatedAt    time.Time                   `json:"updatedAt"`
+	AnalyzedAt   *time.Time                  `json:"analyzedAt,omitempty"`
 }
 
 type PresignMediaResponse struct {
@@ -154,15 +187,20 @@ func mediaCampaignResponse(campaign *domaincampaign.CampaignView) *MediaCampaign
 func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailResponse {
 	v := result.Media
 	resp := MediaDetailResponse{
-		ID:         v.ID.String(),
-		CampaignID: v.CampaignID.String(),
-		Filename:   v.Filename,
-		MediaType:  string(v.MediaType),
-		Status:     string(v.Status),
-		Contents:   make([]MediaContentChildResponse, 0, len(result.Contents)),
-		CreatedAt:  v.CreatedAt,
-		UpdatedAt:  v.UpdatedAt,
-		AnalyzedAt: v.AnalyzedAt,
+		ID:          v.ID.String(),
+		CampaignID:  v.CampaignID.String(),
+		ClientID:    v.ClientID.String(),
+		Filename:    v.Filename,
+		ContentType: v.ContentType,
+		MediaType:   string(v.MediaType),
+		ObjectKey:   v.ObjectKey,
+		SizeBytes:   v.SizeBytes,
+		Status:      string(v.Status),
+		Campaign:    mediaCampaignResponse(result.Campaign),
+		Contents:    make([]MediaContentChildResponse, 0, len(result.Contents)),
+		CreatedAt:   v.CreatedAt,
+		UpdatedAt:   v.UpdatedAt,
+		AnalyzedAt:  v.AnalyzedAt,
 	}
 	if v.Verdict != nil {
 		resp.Verdict = &MediaVerdictResponse{
@@ -172,27 +210,70 @@ func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailRespons
 			FailedCount:  v.Verdict.FailedCount,
 		}
 	}
+	if v.MediaType == domainmedia.MediaTypeImage {
+		url := "/api/medias/" + v.ID.String() + "/thumbnail?v=" + strconv.FormatInt(v.UpdatedAt.UnixNano(), 10)
+		resp.ThumbnailURL = &url
+	}
 	for _, c := range result.Contents {
 		child := MediaContentChildResponse{
 			ID:          c.ID.String(),
+			MediaID:     c.MediaID.String(),
 			FrameIndex:  c.FrameIndex,
 			TimestampMs: c.TimestampMs,
+			ObjectKey:   c.ObjectKey,
+			SizeBytes:   c.SizeBytes,
 			Status:      c.Status,
+			CreatedAt:   c.CreatedAt,
+			UpdatedAt:   c.UpdatedAt,
+			Analysis:    make([]MediaContentAnalysisResultResponse, 0),
 		}
 		if c.ThumbnailKey != nil && *c.ThumbnailKey != "" {
 			url := "/api/medias/" + v.ID.String() + "/contents/" + c.ID.String() +
 				"/thumbnail?v=" + strconv.FormatInt(c.UpdatedAt.UnixNano(), 10)
 			child.ThumbnailURL = &url
 		}
+
+		aggregatedSignals := make([]MediaContentSignalResponse, 0)
+		if result.AnalysisByContent != nil {
+			for _, ar := range result.AnalysisByContent[c.ID] {
+				signals := make([]MediaContentSignalResponse, 0, len(ar.Signals))
+				for _, s := range ar.Signals {
+					sig := MediaContentSignalResponse{
+						Type:        s.Type,
+						Code:        s.Code,
+						Description: s.Description,
+						Weight:      s.Weight,
+					}
+					signals = append(signals, sig)
+					aggregatedSignals = append(aggregatedSignals, sig)
+				}
+				child.Analysis = append(child.Analysis, MediaContentAnalysisResultResponse{
+					ID:             ar.ID.String(),
+					DetectorName:   ar.DetectorName,
+					Status:         string(ar.Status),
+					Error:          ar.Error,
+					Signals:        signals,
+					StartedAt:      ar.StartedAt,
+					CompletedAt:    ar.CompletedAt,
+					RulesetVersion: ar.RulesetVersion,
+				})
+			}
+		}
+
 		if c.Label != nil && *c.Label != "" {
 			conf := 0.0
 			if c.Confidence != nil {
 				conf = *c.Confidence
 			}
-			child.Verdict = &struct {
-				Label      string  `json:"label"`
-				Confidence float64 `json:"confidence"`
-			}{Label: *c.Label, Confidence: conf}
+			child.Verdict = &MediaContentVerdictResponse{
+				Label:      *c.Label,
+				Confidence: conf,
+				Signals:    aggregatedSignals,
+			}
+		} else if len(aggregatedSignals) > 0 {
+			child.Verdict = &MediaContentVerdictResponse{
+				Signals: aggregatedSignals,
+			}
 		}
 		resp.Contents = append(resp.Contents, child)
 	}

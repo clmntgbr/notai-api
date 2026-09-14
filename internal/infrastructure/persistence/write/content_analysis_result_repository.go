@@ -98,3 +98,45 @@ func (r *contentAnalysisResultRepository) FindByContentID(
 	}
 	return out, nil
 }
+
+func (r *contentAnalysisResultRepository) FindByContentIDs(
+	ctx context.Context,
+	contentIDs []uuid.UUID,
+) (map[uuid.UUID][]analysisresult.Result, error) {
+	out := make(map[uuid.UUID][]analysisresult.Result, len(contentIDs))
+	if len(contentIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []ContentAnalysisResultModel
+	if err := DBWithContext(ctx, r.db).
+		Where("content_id IN ?", contentIDs).
+		Order("content_id ASC, detector_name ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		signals, err := analysisresult.SignalsFromJSON(row.Signals)
+		if err != nil {
+			return nil, err
+		}
+		errText := ""
+		if row.Error != nil {
+			errText = *row.Error
+		}
+		out[row.ContentID] = append(out[row.ContentID], analysisresult.Result{
+			ID:             row.ID,
+			ContentID:      row.ContentID,
+			DetectorName:   row.DetectorName,
+			Status:         analysisresult.Status(row.Status),
+			Signals:        signals,
+			Error:          errText,
+			StartedAt:      row.StartedAt,
+			CompletedAt:    row.CompletedAt,
+			Weight:         1,
+			RulesetVersion: row.RulesetVersion,
+		})
+	}
+	return out, nil
+}

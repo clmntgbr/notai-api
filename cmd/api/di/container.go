@@ -64,6 +64,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	mediaWriteRepo := write.NewMediaWriteRepository(db)
 	mediaReadRepo := read.NewMediaReadRepository(db)
 	contentWriteRepo := write.NewContentWriteRepository(db)
+	analysisResultRepo := write.NewContentAnalysisResultRepository(db)
 	activityReadRepo := read.NewActivityEventReadRepository(db)
 	outboxRepo := outbox.NewRepository(db)
 
@@ -132,7 +133,11 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	getCampaignByIDHandler := querycampaign.NewGetCampaignByIDHandler(campaignReadRepo)
 	listCampaignsByClientHandler := querycampaign.NewListCampaignsByClientHandler(campaignReadRepo)
 	listMediaByClientHandler := querymedia.NewListByClientHandler(mediaReadRepo, campaignReadRepo)
-	getMediaByIDHandler := querymedia.NewGetByIDHandler(mediaReadRepo)
+	getMediaByIDHandler := querymedia.NewGetByIDHandler(
+		mediaReadRepo,
+		campaignReadRepo,
+		analysisResultRepo,
+	)
 	getMediaStatsByClientHandler := querymedia.NewGetStatsByClientHandler(mediaReadRepo)
 	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo)
 

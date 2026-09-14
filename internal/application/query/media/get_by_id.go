@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"go-api/internal/domain/analysisresult"
+	domaincampaign "go-api/internal/domain/campaign"
 	domainmedia "go-api/internal/domain/media"
 
 	"github.com/google/uuid"
@@ -15,16 +17,28 @@ type GetByIDQuery struct {
 }
 
 type GetByIDResult struct {
-	Media    domainmedia.MediaView
-	Contents []domainmedia.ContentChildView
+	Media             domainmedia.MediaView
+	Contents          []domainmedia.ContentChildView
+	Campaign          *domaincampaign.CampaignView
+	AnalysisByContent map[uuid.UUID][]analysisresult.Result
 }
 
 type GetByIDHandler struct {
-	mediaRepo domainmedia.MediaReadRepository
+	mediaRepo    domainmedia.MediaReadRepository
+	campaignRepo domaincampaign.CampaignReadRepository
+	analysisRepo analysisresult.WriteRepository
 }
 
-func NewGetByIDHandler(mediaRepo domainmedia.MediaReadRepository) *GetByIDHandler {
-	return &GetByIDHandler{mediaRepo: mediaRepo}
+func NewGetByIDHandler(
+	mediaRepo domainmedia.MediaReadRepository,
+	campaignRepo domaincampaign.CampaignReadRepository,
+	analysisRepo analysisresult.WriteRepository,
+) *GetByIDHandler {
+	return &GetByIDHandler{
+		mediaRepo:    mediaRepo,
+		campaignRepo: campaignRepo,
+		analysisRepo: analysisRepo,
+	}
 }
 
 func (h *GetByIDHandler) Handle(ctx context.Context, q GetByIDQuery) (*GetByIDResult, error) {
@@ -43,5 +57,31 @@ func (h *GetByIDHandler) Handle(ctx context.Context, q GetByIDQuery) (*GetByIDRe
 	if err != nil {
 		return nil, err
 	}
-	return &GetByIDResult{Media: *view, Contents: contents}, nil
+
+	var campaign *domaincampaign.CampaignView
+	if h.campaignRepo != nil {
+		campaign, err = h.campaignRepo.FindByID(ctx, view.CampaignID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	analysisByContent := map[uuid.UUID][]analysisresult.Result{}
+	if h.analysisRepo != nil && len(contents) > 0 {
+		ids := make([]uuid.UUID, 0, len(contents))
+		for _, child := range contents {
+			ids = append(ids, child.ID)
+		}
+		analysisByContent, err = h.analysisRepo.FindByContentIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &GetByIDResult{
+		Media:             *view,
+		Contents:          contents,
+		Campaign:          campaign,
+		AnalysisByContent: analysisByContent,
+	}, nil
 }

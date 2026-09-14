@@ -370,14 +370,25 @@ func TestMediaHandler_Presign_Internal(t *testing.T) {
 
 func TestMediaHandler_GetByID_Success(t *testing.T) {
 	frame := 0
+	size := int64(2048)
+	label := "human"
+	conf := 0.91
+	view := sampleMediaView()
+	view.SizeBytes = &size
 	getByID := &mockGetMediaByIDHandler{
 		result: &querymedia.GetByIDResult{
-			Media: sampleMediaView(),
+			Media: view,
 			Contents: []domainmedia.ContentChildView{{
 				ID:         uuid.MustParse("01960000-0000-7000-8000-0000000000c1"),
-				MediaID:    uuid.MustParse("01960000-0000-7000-8000-0000000000a1"),
+				MediaID:    view.ID,
 				FrameIndex: &frame,
+				ObjectKey:  "clients/x/campaigns/y/media/z/frames/000.jpg",
+				SizeBytes:  &size,
 				Status:     "analyzed",
+				Label:      &label,
+				Confidence: &conf,
+				CreatedAt:  view.CreatedAt,
+				UpdatedAt:  view.UpdatedAt,
 			}},
 		},
 	}
@@ -390,7 +401,7 @@ func TestMediaHandler_GetByID_Success(t *testing.T) {
 	)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/medias/"+sampleMediaView().ID.String(),
+		"/medias/"+view.ID.String(),
 		nil,
 	))
 	if err != nil {
@@ -398,6 +409,22 @@ func TestMediaHandler_GetByID_Success(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	body := testutil.DecodeJSONMap(t, resp)
+	if body["id"] != view.ID.String() ||
+		body["clientId"] != view.ClientID.String() ||
+		body["contentType"] != view.ContentType ||
+		body["objectKey"] != view.ObjectKey ||
+		body["sizeBytes"] != float64(size) {
+		t.Fatalf("media fields: %#v", body)
+	}
+	contents, ok := body["contents"].([]any)
+	if !ok || len(contents) != 1 {
+		t.Fatalf("contents: %#v", body["contents"])
+	}
+	child, ok := contents[0].(map[string]any)
+	if !ok || child["objectKey"] == nil || child["analysis"] == nil {
+		t.Fatalf("content child: %#v", contents[0])
 	}
 }
 
