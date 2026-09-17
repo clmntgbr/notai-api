@@ -27,10 +27,28 @@ func (h *ActivityHandler) List(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Current client is required"})
 	}
 
-	var listQuery paginate.PaginateQuery
+	var listQuery struct {
+		paginate.PaginateQuery
+		CampaignIDs string `query:"campaignIds"`
+	}
 	if err := c.Bind().Query(&listQuery); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "Invalid query parameters",
+		})
+	}
+
+	campaignIDs, err := parseUUIDFilters(listQuery.CampaignIDs)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid campaign ids",
+			"errors":  fiber.Map{"campaignIds": err.Error()},
+		})
+	}
+
+	from, to, err := parseOptionalMediaPeriod(c.Query("from"), c.Query("to"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": err.Error(),
 		})
 	}
 
@@ -44,16 +62,22 @@ func (h *ActivityHandler) List(c fiber.Ctx) error {
 	}
 
 	views, total, err := h.listHandler.Handle(c.Context(), queryactivity.ListByClientQuery{
-		ClientID: clientID,
-		Query:    listQuery,
+		ClientID:    clientID,
+		CampaignIDs: campaignIDs,
+		From:        from,
+		To:          to,
+		Query:       listQuery.PaginateQuery,
 	})
 	if err != nil {
+		if err.Error() == "campaign not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to list activity"})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(paginate.NewPaginateResponse(
 		presenter.NewActivityListResponseFromViews(views),
 		int(total),
-		listQuery,
+		listQuery.PaginateQuery,
 	))
 }

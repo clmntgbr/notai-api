@@ -195,7 +195,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		analysisResultRepo,
 	)
 	getMediaStatsByClientHandler := querymedia.NewGetStatsByClientHandler(mediaReadRepo)
-	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo)
+	listActivityByClientHandler := queryactivity.NewListByClientHandler(activityReadRepo, campaignReadRepo)
 
 	listActivePlansHandler := queryplan.NewListActivePlansHandler(planReadRepo)
 	getCurrentSubscriptionHandler := querysubscription.NewGetCurrentSubscriptionHandler(

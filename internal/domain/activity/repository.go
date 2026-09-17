@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"time"
 
 	"go-api/internal/domain/paginate"
 
@@ -16,6 +17,8 @@ type ReadRepository interface {
 	FindPageByClientID(
 		ctx context.Context,
 		clientID uuid.UUID,
+		campaignIDs []uuid.UUID,
+		from, to *time.Time,
 		query paginate.PaginateQuery,
 	) ([]View, int64, error)
 }
