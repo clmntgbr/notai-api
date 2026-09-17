@@ -26,9 +26,15 @@ type MediaReadRepository interface {
 		campaignIDs []uuid.UUID,
 		query paginate.PaginateQuery,
 		statuses, verdicts []string,
+		from, to *time.Time,
 	) ([]MediaView, int64, error)
 	FindContentsByMediaID(ctx context.Context, mediaID uuid.UUID) ([]ContentChildView, error)
-	CountStatsByClientID(ctx context.Context, clientID uuid.UUID, campaignID *uuid.UUID) (*MediaStats, error)
+	CountStatsByClientID(
+		ctx context.Context,
+		clientID uuid.UUID,
+		campaignID *uuid.UUID,
+		from, to time.Time,
+	) (*MediaStats, error)
 	// SumStorageBytesByWorkspaceID sums media originals + extracted frame object sizes
 	// (frame_index IS NOT NULL) for the workspace billing scope.
 	SumStorageBytesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (int64, error)
@@ -43,26 +49,29 @@ type MediaStats struct {
 	Human           int64
 	AIGenerated     int64
 	Uncertain       int64
+	From            time.Time
+	To              time.Time
 	MonthlyControls []MediaMonthlyStats
 	KPIs            MediaDashboardKPIs
 }
 
-// MediaDashboardKPIs are the agency home cards (current UTC month vs previous).
+// MediaDashboardKPIs are the agency home cards for the selected period vs the previous
+// window of equal duration.
 type MediaDashboardKPIs struct {
 	Month string
 
 	Verifications              int64
-	VerificationsChangePercent *float64 // nil when previous month had 0
+	VerificationsChangePercent *float64 // nil when previous period had 0
 	PlanIncluded               *int64   // nil until billing plans exist
 
 	AuthenticityRatePercent  float64
-	AuthenticityChangePoints *float64 // nil when previous month had 0 verifications
-	ValidatedCount           int64    // human-labeled this month
+	AuthenticityChangePoints *float64 // nil when previous period had 0 verifications
+	ValidatedCount           int64    // human-labeled in period
 
 	ToReviewCount           int64
 	ToReviewChangePercent   *float64
 	AIGeneratedCount        int64
-	AIGeneratedSharePercent float64 // share of this month's verifications
+	AIGeneratedSharePercent float64 // share of period verifications
 }
 
 type MediaMonthlyStats struct {

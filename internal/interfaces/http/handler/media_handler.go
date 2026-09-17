@@ -154,6 +154,13 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 		})
 	}
 
+	from, to, err := parseOptionalMediaPeriod(c.Query("from"), c.Query("to"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": err.Error(),
+		})
+	}
+
 	sortBy, orderBy := listQuery.SortBy, listQuery.OrderBy
 	listQuery.Normalize()
 	if sortBy == "" {
@@ -168,6 +175,8 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 		CampaignIDs: campaignIDs,
 		Statuses:    statuses,
 		Verdicts:    verdicts,
+		From:        from,
+		To:          to,
 		Query:       listQuery.PaginateQuery,
 	})
 	if err != nil {
@@ -203,9 +212,18 @@ func (h *MediaHandler) Stats(c fiber.Ctx) error {
 		campaignID = &parsed
 	}
 
+	from, to, err := parseMediaStatsPeriod(c.Query("from"), c.Query("to"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": err.Error(),
+		})
+	}
+
 	stats, err := h.statsHandler.Handle(c.Context(), querymedia.GetStatsByClientQuery{
 		ClientID:   clientID,
 		CampaignID: campaignID,
+		From:       from,
+		To:         to,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to get media stats"})

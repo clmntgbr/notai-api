@@ -65,6 +65,7 @@ func (r *mediaReadRepository) FindPageByClientID(
 	campaignIDs []uuid.UUID,
 	query paginate.PaginateQuery,
 	statuses, verdicts []string,
+	from, to *time.Time,
 ) ([]domainmedia.MediaView, int64, error) {
 	switch query.SortBy {
 	case "", "created_at":
@@ -84,6 +85,12 @@ func (r *mediaReadRepository) FindPageByClientID(
 		Where("client_id = ?", clientID)
 	if len(campaignIDs) > 0 {
 		db = db.Where("campaign_id IN ?", campaignIDs)
+	}
+	if from != nil {
+		db = db.Where("created_at >= ?", *from)
+	}
+	if to != nil {
+		db = db.Where("created_at <= ?", *to)
 	}
 
 	if query.Search != "" {
@@ -167,6 +174,7 @@ func (r *mediaReadRepository) CountStatsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
 	campaignID *uuid.UUID,
+	from, to time.Time,
 ) (*domainmedia.MediaStats, error) {
 	var row struct {
 		PendingUpload int64
@@ -190,7 +198,7 @@ func (r *mediaReadRepository) CountStatsByClientID(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ?", clientID)
+		Where("client_id = ? AND created_at >= ? AND created_at <= ?", clientID, from, to)
 	if campaignID != nil {
 		q = q.Where("campaign_id = ?", *campaignID)
 	}
@@ -198,12 +206,12 @@ func (r *mediaReadRepository) CountStatsByClientID(
 		return nil, err
 	}
 
-	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID, campaignID)
+	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID, campaignID, to)
 	if err != nil {
 		return nil, err
 	}
 
-	kpis, err := r.countDashboardKPIsByClientID(ctx, clientID, campaignID)
+	kpis, err := r.countDashboardKPIsByClientID(ctx, clientID, campaignID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -217,6 +225,8 @@ func (r *mediaReadRepository) CountStatsByClientID(
 		Human:           row.Human,
 		AIGenerated:     row.AIGenerated,
 		Uncertain:       row.Uncertain,
+		From:            from,
+		To:              to,
 		MonthlyControls: monthly,
 		KPIs:            *kpis,
 	}, nil
@@ -226,11 +236,9 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
 	campaignID *uuid.UUID,
+	from, to time.Time,
 ) (*domainmedia.MediaDashboardKPIs, error) {
-	now := time.Now().UTC()
-	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	prevStart := thisStart.AddDate(0, -1, 0)
-	nextStart := thisStart.AddDate(0, 1, 0)
+	prevStart, prevEnd := previousStatsPeriod(from, to)
 
 	var row struct {
 		ThisVerifications int64
@@ -244,9 +252,10 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 	}
 	params := map[string]any{
 		"clientID":  clientID,
-		"thisStart": thisStart,
+		"thisStart": from,
+		"thisEnd":   to,
 		"prevStart": prevStart,
-		"nextStart": nextStart,
+		"prevEnd":   prevEnd,
 	}
 	campaignFilter := ""
 	if campaignID != nil {
@@ -257,40 +266,40 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 		SELECT
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND analyzed_at >= @thisStart AND analyzed_at <= @thisEnd
 			) AS this_verifications,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND analyzed_at >= @thisStart AND analyzed_at <= @thisEnd
 				  AND verdict->>'label' = 'human'
 			) AS this_human,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND analyzed_at >= @thisStart AND analyzed_at <= @thisEnd
 				  AND verdict->>'label' = 'ai_generated'
 			) AS this_ai_generated,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @thisStart AND analyzed_at < @nextStart
+				  AND analyzed_at >= @thisStart AND analyzed_at <= @thisEnd
 				  AND verdict->>'label' = 'uncertain'
 			) AS this_uncertain,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND analyzed_at >= @prevStart AND analyzed_at <= @prevEnd
 			) AS prev_verifications,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND analyzed_at >= @prevStart AND analyzed_at <= @prevEnd
 				  AND verdict->>'label' = 'human'
 			) AS prev_human,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND analyzed_at >= @prevStart AND analyzed_at <= @prevEnd
 				  AND verdict->>'label' = 'ai_generated'
 			) AS prev_ai_generated,
 			COUNT(*) FILTER (
 				WHERE status = 'analyzed'
-				  AND analyzed_at >= @prevStart AND analyzed_at < @thisStart
+				  AND analyzed_at >= @prevStart AND analyzed_at <= @prevEnd
 				  AND verdict->>'label' = 'uncertain'
 			) AS prev_uncertain
 		FROM media
@@ -319,7 +328,7 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 	prevAuth := ratePercent(row.PrevHuman, row.PrevVerifications)
 
 	return &domainmedia.MediaDashboardKPIs{
-		Month:                      thisStart.Format("2006-01"),
+		Month:                      from.UTC().Format("2006-01"),
 		Verifications:              row.ThisVerifications,
 		VerificationsChangePercent: percentChange(row.ThisVerifications, row.PrevVerifications),
 		PlanIncluded:               planIncluded,
@@ -339,6 +348,25 @@ func percentChange(current, previous int64) *float64 {
 	}
 	v := round1(float64(current-previous) / float64(previous) * 100)
 	return &v
+}
+
+// previousStatsPeriod returns the inclusive comparison window before [from, to].
+// Calendar-month windows use the previous calendar month; otherwise the
+// previous window has the same duration ending just before from.
+func previousStatsPeriod(from, to time.Time) (time.Time, time.Time) {
+	from = from.UTC()
+	to = to.UTC()
+	monthStart := time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)
+	monthEnd := monthStart.AddDate(0, 1, 0).Add(-time.Nanosecond)
+	if from.Equal(monthStart) && to.Equal(monthEnd) {
+		prevStart := monthStart.AddDate(0, -1, 0)
+		prevEnd := monthStart.Add(-time.Nanosecond)
+		return prevStart, prevEnd
+	}
+	duration := to.Sub(from)
+	prevEnd := from.Add(-time.Nanosecond)
+	prevStart := prevEnd.Add(-duration)
+	return prevStart, prevEnd
 }
 
 func ratePercent(part, total int64) float64 {
@@ -364,9 +392,10 @@ func (r *mediaReadRepository) countMonthlyControlsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
 	campaignID *uuid.UUID,
+	periodEnd time.Time,
 ) ([]domainmedia.MediaMonthlyStats, error) {
-	now := time.Now().UTC()
-	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
+	end := periodEnd.UTC()
+	start := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
 
 	var rows []struct {
 		Month         string

@@ -289,6 +289,8 @@ type MediaStatsResponse struct {
 	Human           int64                          `json:"human"`
 	AIGenerated     int64                          `json:"aiGenerated"`
 	Uncertain       int64                          `json:"uncertain"`
+	From            time.Time                      `json:"from"`
+	To              time.Time                      `json:"to"`
 	MonthlyControls []MediaMonthlyControlsResponse `json:"monthlyControls"`
 	KPIs            MediaDashboardKPIsResponse     `json:"kpis"`
 }
@@ -349,6 +351,8 @@ func NewMediaStatsResponse(stats *domainmedia.MediaStats) MediaStatsResponse {
 		Human:           stats.Human,
 		AIGenerated:     stats.AIGenerated,
 		Uncertain:       stats.Uncertain,
+		From:            stats.From,
+		To:              stats.To,
 		MonthlyControls: monthly,
 		KPIs: MediaDashboardKPIsResponse{
 			Month:                      stats.KPIs.Month,

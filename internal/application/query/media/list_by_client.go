@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	domaincampaign "go-api/internal/domain/campaign"
 	domainmedia "go-api/internal/domain/media"
@@ -17,7 +18,10 @@ type ListByClientQuery struct {
 	CampaignIDs []uuid.UUID // optional; empty = all campaigns for the client
 	Statuses    []string    // optional media statuses
 	Verdicts    []string    // optional verdict labels (verdict->>'label')
-	Query       paginate.PaginateQuery
+	// From/To optional inclusive created_at window; both nil = no date filter.
+	From  *time.Time
+	To    *time.Time
+	Query paginate.PaginateQuery
 }
 
 type ListByClientResult struct {
@@ -63,6 +67,10 @@ func (h *ListByClientHandler) Handle(
 		}
 	}
 
+	if q.From != nil && q.To != nil && q.From.After(*q.To) {
+		return nil, errors.New("from must be before to")
+	}
+
 	views, total, err := h.mediaRepo.FindPageByClientID(
 		ctx,
 		q.ClientID,
@@ -70,6 +78,8 @@ func (h *ListByClientHandler) Handle(
 		q.Query,
 		q.Statuses,
 		q.Verdicts,
+		q.From,
+		q.To,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list media: %w", err)

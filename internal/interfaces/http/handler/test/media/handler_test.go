@@ -559,6 +559,15 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 	if stats.query.CampaignID != nil {
 		t.Fatalf("expected nil campaignId, got %v", stats.query.CampaignID)
 	}
+	if stats.query.From.IsZero() || stats.query.To.IsZero() {
+		t.Fatalf("expected default from/to, got from=%v to=%v", stats.query.From, stats.query.To)
+	}
+	now := time.Now().UTC()
+	wantFrom := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	wantTo := wantFrom.AddDate(0, 1, 0).Add(-time.Nanosecond)
+	if !stats.query.From.Equal(wantFrom) || !stats.query.To.Equal(wantTo) {
+		t.Fatalf("default period: got [%v, %v] want [%v, %v]", stats.query.From, stats.query.To, wantFrom, wantTo)
+	}
 	body := testutil.DecodeJSONMap(t, resp)
 	if body["pendingUpload"] != float64(1) || body["uploaded"] != float64(2) ||
 		body["processing"] != float64(3) || body["analyzed"] != float64(4) ||
@@ -611,6 +620,138 @@ func TestMediaHandler_Stats_WithCampaignID(t *testing.T) {
 	}
 	if stats.query.CampaignID == nil || *stats.query.CampaignID != testutil.TestCampaignID {
 		t.Fatalf("campaignId: got %v want %s", stats.query.CampaignID, testutil.TestCampaignID)
+	}
+}
+
+func TestMediaHandler_Stats_FromAndTo(t *testing.T) {
+	stats := &mockMediaStatsHandler{stats: &domainmedia.MediaStats{}}
+	h := newMediaHandler(nil, nil, nil, stats, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias/stats?from=2026-01-01&to=2026-01-31",
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond) // inclusive end of Jan 31
+	if !stats.query.From.Equal(wantFrom) || !stats.query.To.Equal(wantTo) {
+		t.Fatalf("period: got [%v, %v] want [%v, %v]", stats.query.From, stats.query.To, wantFrom, wantTo)
+	}
+}
+
+func TestMediaHandler_Stats_FromOnly(t *testing.T) {
+	stats := &mockMediaStatsHandler{stats: &domainmedia.MediaStats{}}
+	h := newMediaHandler(nil, nil, nil, stats, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	before := time.Now().UTC()
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats?from=2026-03-15", nil))
+	after := time.Now().UTC()
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	wantFrom := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)
+	if !stats.query.From.Equal(wantFrom) {
+		t.Fatalf("from: got %v want %v", stats.query.From, wantFrom)
+	}
+	if stats.query.To.Before(before) || stats.query.To.After(after.Add(time.Second)) {
+		t.Fatalf("to should be ~now, got %v", stats.query.To)
+	}
+}
+
+func TestMediaHandler_Stats_ToOnly_BadRequest(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats?to=2026-01-31", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestMediaHandler_Stats_InvalidFrom(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias/stats?from=not-a-date", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_Stats_InvalidTo(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias/stats?from=2026-01-01&to=not-a-date",
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_Stats_FromAfterTo(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias/stats?from=2026-02-01&to=2026-01-01",
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_Stats_RFC3339(t *testing.T) {
+	stats := &mockMediaStatsHandler{stats: &domainmedia.MediaStats{}}
+	h := newMediaHandler(nil, nil, nil, stats, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias/stats", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Stats)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias/stats?from=2026-01-01T00:00:00Z&to=2026-01-15T12:00:00Z",
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	if !stats.query.From.Equal(wantFrom) || !stats.query.To.Equal(wantTo) {
+		t.Fatalf("period: got [%v, %v) want [%v, %v)", stats.query.From, stats.query.To, wantFrom, wantTo)
 	}
 }
 
@@ -1100,6 +1241,9 @@ func TestMediaHandler_List_Success(t *testing.T) {
 	if len(list.query.Statuses) != 0 || len(list.query.Verdicts) != 0 {
 		t.Fatalf("unexpected filters: statuses=%v verdicts=%v", list.query.Statuses, list.query.Verdicts)
 	}
+	if list.query.From != nil || list.query.To != nil {
+		t.Fatalf("expected no date filter, got from=%v to=%v", list.query.From, list.query.To)
+	}
 	body := testutil.DecodeJSONMap(t, resp)
 	members, ok := body["members"].([]any)
 	if !ok || len(members) != 1 {
@@ -1227,6 +1371,82 @@ func TestMediaHandler_List_WithStatusAndVerdictFilters(t *testing.T) {
 		if list.query.Verdicts[i] != wantVerdicts[i] {
 			t.Fatalf("verdicts: got %#v want %#v", list.query.Verdicts, wantVerdicts)
 		}
+	}
+}
+
+func TestMediaHandler_List_WithFromAndTo(t *testing.T) {
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{Views: []domainmedia.MediaView{}, Total: 0},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias?from=2026-01-01&to=2026-01-31",
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond)
+	if list.query.From == nil || list.query.To == nil ||
+		!list.query.From.Equal(wantFrom) || !list.query.To.Equal(wantTo) {
+		t.Fatalf("period: got [%v, %v] want [%v, %v]", list.query.From, list.query.To, wantFrom, wantTo)
+	}
+}
+
+func TestMediaHandler_List_FromOnly(t *testing.T) {
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{Views: []domainmedia.MediaView{}, Total: 0},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	before := time.Now().UTC()
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?from=2026-03-15", nil))
+	after := time.Now().UTC()
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	wantFrom := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)
+	if list.query.From == nil || !list.query.From.Equal(wantFrom) {
+		t.Fatalf("from: got %v want %v", list.query.From, wantFrom)
+	}
+	if list.query.To == nil || list.query.To.Before(before) || list.query.To.After(after.Add(time.Second)) {
+		t.Fatalf("to should be ~now, got %v", list.query.To)
+	}
+}
+
+func TestMediaHandler_List_ToOnly(t *testing.T) {
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{Views: []domainmedia.MediaView{}, Total: 0},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?to=2026-01-31", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	wantTo := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond)
+	if list.query.From != nil {
+		t.Fatalf("expected nil from, got %v", list.query.From)
+	}
+	if list.query.To == nil || !list.query.To.Equal(wantTo) {
+		t.Fatalf("to: got %v want %v", list.query.To, wantTo)
 	}
 }
 
