@@ -15,6 +15,8 @@ import (
 type ListByClientQuery struct {
 	ClientID   uuid.UUID
 	CampaignID uuid.UUID // optional; uuid.Nil = all campaigns for the client
+	Statuses   []string  // optional media statuses
+	Verdicts   []string  // optional verdict labels (verdict->>'label')
 	Query      paginate.PaginateQuery
 }
 
@@ -54,7 +56,14 @@ func (h *ListByClientHandler) Handle(
 		}
 	}
 
-	views, total, err := h.mediaRepo.FindPageByClientID(ctx, q.ClientID, q.CampaignID, q.Query)
+	views, total, err := h.mediaRepo.FindPageByClientID(
+		ctx,
+		q.ClientID,
+		q.CampaignID,
+		q.Query,
+		q.Statuses,
+		q.Verdicts,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list media: %w", err)
 	}

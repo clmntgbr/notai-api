@@ -1080,6 +1080,9 @@ func TestMediaHandler_List_Success(t *testing.T) {
 	if !list.called || list.query.ClientID != testutil.TestClientID || list.query.CampaignID != uuid.Nil {
 		t.Fatalf("list query: %+v", list.query)
 	}
+	if len(list.query.Statuses) != 0 || len(list.query.Verdicts) != 0 {
+		t.Fatalf("unexpected filters: statuses=%v verdicts=%v", list.query.Statuses, list.query.Verdicts)
+	}
 	body := testutil.DecodeJSONMap(t, resp)
 	members, ok := body["members"].([]any)
 	if !ok || len(members) != 1 {
@@ -1162,6 +1165,75 @@ func TestMediaHandler_List_WithCampaignFilter(t *testing.T) {
 	}
 	if !list.called || list.query.CampaignID != testutil.TestCampaignID {
 		t.Fatalf("list query: %+v", list.query)
+	}
+}
+
+func TestMediaHandler_List_WithStatusAndVerdictFilters(t *testing.T) {
+	list := &mockListMediaHandler{
+		result: &querymedia.ListByClientResult{Views: []domainmedia.MediaView{}, Total: 0},
+	}
+	h := newMediaHandler(nil, list, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
+		"/medias?status=processing%2Cfailed%2Cuploaded%2Cpending_upload&verdict=human%2Cuncertain%2Cai_generated",
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if !list.called {
+		t.Fatal("list handler not called")
+	}
+	wantStatuses := []string{"processing", "failed", "uploaded", "pending_upload"}
+	wantVerdicts := []string{"human", "uncertain", "ai_generated"}
+	if len(list.query.Statuses) != len(wantStatuses) {
+		t.Fatalf("statuses: got %#v want %#v", list.query.Statuses, wantStatuses)
+	}
+	for i := range wantStatuses {
+		if list.query.Statuses[i] != wantStatuses[i] {
+			t.Fatalf("statuses: got %#v want %#v", list.query.Statuses, wantStatuses)
+		}
+	}
+	if len(list.query.Verdicts) != len(wantVerdicts) {
+		t.Fatalf("verdicts: got %#v want %#v", list.query.Verdicts, wantVerdicts)
+	}
+	for i := range wantVerdicts {
+		if list.query.Verdicts[i] != wantVerdicts[i] {
+			t.Fatalf("verdicts: got %#v want %#v", list.query.Verdicts, wantVerdicts)
+		}
+	}
+}
+
+func TestMediaHandler_List_InvalidStatusFilter(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?status=bogus", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestMediaHandler_List_InvalidVerdictFilter(t *testing.T) {
+	h := newMediaHandler(nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?verdict=maybe", nil))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 }
 

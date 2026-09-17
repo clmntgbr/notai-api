@@ -14,7 +14,7 @@ import (
 var (
 	ErrMemberQuotaExceeded       = errors.New("Member quota exceeded for your current plan")
 	ErrCampaignQuotaExceeded     = errors.New("Campaign quota exceeded for your current plan")
-	ErrVerificationQuotaExceeded = errors.New("Verification quota exceeded for your current plan")
+	ErrVerificationQuotaExceeded = errors.New("Quota exceeded for your current plan")
 	ErrConcurrentQuotaExceeded   = errors.New("Concurrent analysis quota exceeded for your current plan")
 	ErrFileSizeQuotaExceeded     = errors.New("File size exceeds the maximum allowed for your current plan")
 	ErrVideoAnalysisNotAllowed   = errors.New("Video analysis is not available on your current plan")

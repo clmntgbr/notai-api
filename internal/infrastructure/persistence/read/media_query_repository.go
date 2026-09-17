@@ -63,6 +63,7 @@ func (r *mediaReadRepository) FindPageByClientID(
 	ctx context.Context,
 	clientID, campaignID uuid.UUID,
 	query paginate.PaginateQuery,
+	statuses, verdicts []string,
 ) ([]domainmedia.MediaView, int64, error) {
 	switch query.SortBy {
 	case "", "created_at":
@@ -86,6 +87,16 @@ func (r *mediaReadRepository) FindPageByClientID(
 
 	if query.Search != "" {
 		db = db.Where("filename ILIKE ?", "%"+query.Search+"%")
+	}
+
+	switch {
+	case len(statuses) > 0 && len(verdicts) > 0:
+		// Multi-select chips are additive: match either a selected status or a selected verdict.
+		db = db.Where("status IN ? OR verdict->>'label' IN ?", statuses, verdicts)
+	case len(statuses) > 0:
+		db = db.Where("status IN ?", statuses)
+	case len(verdicts) > 0:
+		db = db.Where("verdict->>'label' IN ?", verdicts)
 	}
 
 	db, total, err := Paginate(db, query)

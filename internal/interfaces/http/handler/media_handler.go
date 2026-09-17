@@ -122,6 +122,8 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 	var listQuery struct {
 		paginate.PaginateQuery
 		CampaignID string `query:"campaignId"`
+		Status     string `query:"status"`
+		Verdict    string `query:"verdict"`
 	}
 	if err := c.Bind().Query(&listQuery); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -137,6 +139,21 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 		}
 	}
 
+	statuses, err := parseMediaStatusFilters(listQuery.Status)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid status filter",
+			"errors":  fiber.Map{"status": err.Error()},
+		})
+	}
+	verdicts, err := parseMediaVerdictFilters(listQuery.Verdict)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid verdict filter",
+			"errors":  fiber.Map{"verdict": err.Error()},
+		})
+	}
+
 	sortBy, orderBy := listQuery.SortBy, listQuery.OrderBy
 	listQuery.Normalize()
 	if sortBy == "" {
@@ -149,6 +166,8 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 	result, err := h.listHandler.Handle(c.Context(), querymedia.ListByClientQuery{
 		ClientID:   clientID,
 		CampaignID: campaignID,
+		Statuses:   statuses,
+		Verdicts:   verdicts,
 		Query:      listQuery.PaginateQuery,
 	})
 	if err != nil {
