@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	cmdquota "go-api/internal/application/command/quota"
 	domaincontent "go-api/internal/domain/content"
 	"go-api/internal/domain/event"
 	domainmedia "go-api/internal/domain/media"
@@ -27,6 +28,7 @@ type ExtractFramesHandler struct {
 	outbox      port.OutboxRepository
 	storage     port.Storage
 	extractor   port.FrameExtractor
+	quota       *cmdquota.AssertCreateAllowedHandler
 }
 
 func NewExtractFramesHandler(
@@ -35,6 +37,7 @@ func NewExtractFramesHandler(
 	outbox port.OutboxRepository,
 	storage port.Storage,
 	extractor port.FrameExtractor,
+	quota *cmdquota.AssertCreateAllowedHandler,
 ) *ExtractFramesHandler {
 	return &ExtractFramesHandler{
 		mediaRepo:   mediaRepo,
@@ -42,6 +45,7 @@ func NewExtractFramesHandler(
 		outbox:      outbox,
 		storage:     storage,
 		extractor:   extractor,
+		quota:       quota,
 	}
 }
 
@@ -88,13 +92,21 @@ func (h *ExtractFramesHandler) Handle(ctx context.Context, cmd ExtractFramesComm
 		return nil
 	}
 
+	maxFrames, err := h.resolveMaxFrames(ctx, media.ClientID)
+	if err != nil {
+		if errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed) {
+			return h.failMedia(ctx, media, err)
+		}
+		return err
+	}
+
 	tmpFile, cleanup, err := h.downloadToTemp(ctx, media.ObjectKey)
 	if err != nil {
 		return h.failMedia(ctx, media, err)
 	}
 	defer cleanup()
 
-	frames, err := h.extractor.Extract(ctx, tmpFile)
+	frames, err := h.extractor.Extract(ctx, tmpFile, maxFrames)
 	if err != nil {
 		return h.failMedia(ctx, media, err)
 	}
@@ -172,6 +184,24 @@ func (h *ExtractFramesHandler) Handle(ctx context.Context, cmd ExtractFramesComm
 		}
 		return h.outbox.StoreEvents(txCtx, events)
 	})
+}
+
+func (h *ExtractFramesHandler) resolveMaxFrames(ctx context.Context, clientID uuid.UUID) (int, error) {
+	if h.quota == nil {
+		return port.DefaultFramesPerVideo, nil
+	}
+	usage, err := h.quota.Usage(ctx, clientID)
+	if err != nil {
+		return 0, err
+	}
+	maxFrames := usage.Limits.MaxFramesPerVideo
+	if maxFrames <= 0 {
+		return 0, cmdquota.ErrVideoAnalysisNotAllowed
+	}
+	if maxFrames > port.MaxHardFramesPerVideo {
+		maxFrames = port.MaxHardFramesPerVideo
+	}
+	return maxFrames, nil
 }
 
 func (h *ExtractFramesHandler) downloadToTemp(ctx context.Context, objectKey string) (string, func(), error) {

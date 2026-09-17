@@ -8,6 +8,7 @@ import (
 	domaincampaign "go-api/internal/domain/campaign"
 	domainclient "go-api/internal/domain/client"
 	domaincontent "go-api/internal/domain/content"
+	domainmedia "go-api/internal/domain/media"
 	domainplan "go-api/internal/domain/plan"
 	domainquota "go-api/internal/domain/quota"
 	domainsubscription "go-api/internal/domain/subscription"
@@ -27,6 +28,7 @@ type GetQuotaUsageHandler struct {
 	planRepo         domainplan.PlanReadRepository
 	campaignRepo     domaincampaign.CampaignReadRepository
 	contentRepo      domaincontent.ContentReadRepository
+	mediaRepo        domainmedia.MediaReadRepository
 }
 
 func NewGetQuotaUsageHandler(
@@ -36,6 +38,7 @@ func NewGetQuotaUsageHandler(
 	planRepo domainplan.PlanReadRepository,
 	campaignRepo domaincampaign.CampaignReadRepository,
 	contentRepo domaincontent.ContentReadRepository,
+	mediaRepo domainmedia.MediaReadRepository,
 ) *GetQuotaUsageHandler {
 	return &GetQuotaUsageHandler{
 		clientRepo:       clientRepo,
@@ -44,6 +47,7 @@ func NewGetQuotaUsageHandler(
 		planRepo:         planRepo,
 		campaignRepo:     campaignRepo,
 		contentRepo:      contentRepo,
+		mediaRepo:        mediaRepo,
 	}
 }
 
@@ -129,6 +133,15 @@ func (h *GetQuotaUsageHandler) buildUsage(
 		return nil, errors.New("failed to count concurrent analyses")
 	}
 
+	storageUsed := int64(0)
+	if h.mediaRepo != nil {
+		storageUsed, err = h.mediaRepo.SumStorageBytesByWorkspaceID(ctx, workspaceID)
+		if err != nil {
+			return nil, errors.New("failed to sum storage usage")
+		}
+	}
+	storageMaxBytes := int64(quota.MaxStorageGB) * 1024 * 1024 * 1024
+
 	return &QuotaUsageView{
 		WorkspaceID: workspaceID,
 		Members: QuotaCounter{
@@ -152,6 +165,11 @@ func (h *GetQuotaUsageHandler) buildUsage(
 			Used: concurrentUsed,
 			Max:  quota.MaxConcurrentAnalyses,
 			Left: quotaLeft(quota.MaxConcurrentAnalyses, concurrentUsed),
+		},
+		Storage: QuotaCounter{
+			Used: storageUsed,
+			Max:  int(storageMaxBytes),
+			Left: quotaLeft(int(storageMaxBytes), storageUsed),
 		},
 		Limits: QuotaLimits{
 			MaxFileSizeMB:                  quota.MaxFileSizeMB,

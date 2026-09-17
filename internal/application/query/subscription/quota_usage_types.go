@@ -47,7 +47,9 @@ type QuotaUsageView struct {
 	Campaigns          QuotaCounter
 	Verifications      MonthlyQuotaCounter
 	ConcurrentAnalyses QuotaCounter
-	Limits             QuotaLimits
-	PeriodStart        time.Time
-	PeriodEnd          time.Time
+	// Storage uses bytes for Used/Max/Left; Limits.MaxStorageGB remains the plan field.
+	Storage     QuotaCounter
+	Limits      QuotaLimits
+	PeriodStart time.Time
+	PeriodEnd   time.Time
 }

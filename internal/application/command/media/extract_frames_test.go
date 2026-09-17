@@ -146,7 +146,7 @@ type stubExtractor struct {
 	err    error
 }
 
-func (s stubExtractor) Extract(ctx context.Context, videoPath string) ([]port.ExtractedFrame, error) {
+func (s stubExtractor) Extract(ctx context.Context, videoPath string, maxFrames int) ([]port.ExtractedFrame, error) {
 	return s.frames, s.err
 }
 
@@ -173,7 +173,7 @@ func TestExtractFramesHandler_SuccessCreatesContents(t *testing.T) {
 	}
 	extractor := stubExtractor{frames: frames}
 
-	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor)
+	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor, nil)
 	if err := h.Handle(context.Background(), ExtractFramesCommand{MediaID: mediaID}); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestExtractFramesHandler_ExtractorFailureMarksMediaFailed(t *testing.T) {
 	storage := &memStorage{objects: map[string][]byte{m.ObjectKey: []byte("video")}}
 	extractor := stubExtractor{err: errors.New("ffmpeg boom")}
 
-	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor)
+	h := NewExtractFramesHandler(mediaRepo, contentRepo, memOutbox{}, storage, extractor, nil)
 	err := h.Handle(context.Background(), ExtractFramesCommand{MediaID: mediaID})
 	if err == nil {
 		t.Fatal("expected error")

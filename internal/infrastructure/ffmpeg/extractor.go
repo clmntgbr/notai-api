@@ -12,29 +12,26 @@ import (
 	"go-api/internal/domain/port"
 )
 
-// FramesPerVideo is the fixed number of frames extracted from each video,
-// spaced evenly from start to end.
-const FramesPerVideo = 10
-
 // Extractor runs ffmpeg to sample JPEG frames from a video file.
 type Extractor struct {
-	Binary       string
-	ProbeBinary  string
-	FramesPerVid int
+	Binary      string
+	ProbeBinary string
 }
 
 func NewExtractor() *Extractor {
 	return &Extractor{
-		Binary:       "ffmpeg",
-		ProbeBinary:  "ffprobe",
-		FramesPerVid: FramesPerVideo,
+		Binary:      "ffmpeg",
+		ProbeBinary: "ffprobe",
 	}
 }
 
-func (e *Extractor) Extract(ctx context.Context, videoPath string) ([]port.ExtractedFrame, error) {
-	n := e.FramesPerVid
+func (e *Extractor) Extract(ctx context.Context, videoPath string, maxFrames int) ([]port.ExtractedFrame, error) {
+	n := maxFrames
 	if n <= 0 {
-		n = FramesPerVideo
+		n = port.DefaultFramesPerVideo
+	}
+	if n > port.MaxHardFramesPerVideo {
+		n = port.MaxHardFramesPerVideo
 	}
 
 	durationMs, err := e.probeDurationMs(ctx, videoPath)

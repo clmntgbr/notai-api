@@ -458,3 +458,26 @@ func toMediaView(row mediaRow) *domainmedia.MediaView {
 		UpdatedAt:     row.UpdatedAt,
 	}
 }
+
+func (r *mediaReadRepository) SumStorageBytesByWorkspaceID(
+	ctx context.Context,
+	workspaceID uuid.UUID,
+) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COALESCE((
+			SELECT SUM(COALESCE(m.size_bytes, 0))
+			FROM media m
+			JOIN clients c ON c.id = m.client_id
+			WHERE c.workspace_id = @workspaceID
+		), 0) + COALESCE((
+			SELECT SUM(COALESCE(ct.size_bytes, 0))
+			FROM contents ct
+			JOIN media m ON m.id = ct.media_id
+			JOIN clients c ON c.id = m.client_id
+			WHERE c.workspace_id = @workspaceID
+			  AND ct.frame_index IS NOT NULL
+		), 0)
+	`, map[string]any{"workspaceID": workspaceID}).Scan(&total).Error
+	return total, err
+}

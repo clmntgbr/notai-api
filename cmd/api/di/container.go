@@ -131,6 +131,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		planReadRepo,
 		campaignReadRepo,
 		contentReadRepo,
+		mediaReadRepo,
 	)
 	assertCreateAllowedHandler := cmdquota.NewAssertCreateAllowedHandler(
 		getQuotaUsageHandler,

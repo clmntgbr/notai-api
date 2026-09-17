@@ -366,6 +366,10 @@ func TestSubscriptionHandler_GetQuota_Success(t *testing.T) {
 	if !out.Limits.AllowsVideoAnalysis {
 		t.Fatal("expected video analysis allowed")
 	}
+	// storage counter is always present (bytes); zero is valid when unused
+	if out.Storage.Used < 0 || out.Storage.Left < 0 {
+		t.Fatalf("storage counters must be non-negative: %+v", out.Storage)
+	}
 }
 
 func TestSubscriptionHandler_GetQuota_Unauthorized(t *testing.T) {

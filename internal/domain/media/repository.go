@@ -29,6 +29,9 @@ type MediaReadRepository interface {
 	) ([]MediaView, int64, error)
 	FindContentsByMediaID(ctx context.Context, mediaID uuid.UUID) ([]ContentChildView, error)
 	CountStatsByClientID(ctx context.Context, clientID uuid.UUID, campaignID *uuid.UUID) (*MediaStats, error)
+	// SumStorageBytesByWorkspaceID sums media originals + extracted frame object sizes
+	// (frame_index IS NOT NULL) for the workspace billing scope.
+	SumStorageBytesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 }
 
 type MediaStats struct {

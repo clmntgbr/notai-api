@@ -4,8 +4,10 @@ import (
 	"log"
 
 	mediacmd "go-api/internal/application/command/media"
-	eventmedia "go-api/internal/application/event/media"
+	cmdquota "go-api/internal/application/command/quota"
 	"go-api/internal/application/event/dedup"
+	eventmedia "go-api/internal/application/event/media"
+	querysubscription "go-api/internal/application/query/subscription"
 	"go-api/internal/application/registry"
 	domainmedia "go-api/internal/domain/media"
 	"go-api/internal/infrastructure/config"
@@ -13,6 +15,7 @@ import (
 	"go-api/internal/infrastructure/messaging/rabbitmq"
 	"go-api/internal/infrastructure/persistence/outbox"
 	"go-api/internal/infrastructure/persistence/processed"
+	"go-api/internal/infrastructure/persistence/read"
 	"go-api/internal/infrastructure/persistence/write"
 	"go-api/internal/infrastructure/storage"
 
@@ -47,12 +50,27 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	outboxRepo := outbox.NewRepository(db)
 	dedupRepo := processed.NewRepository(db)
 
+	getQuotaUsageHandler := querysubscription.NewGetQuotaUsageHandler(
+		read.NewClientReadRepository(db),
+		read.NewWorkspaceReadRepository(db),
+		read.NewSubscriptionReadRepository(db, read.NewPlanReadRepository(db, read.NewQuotaReadRepository(db))),
+		read.NewPlanReadRepository(db, read.NewQuotaReadRepository(db)),
+		read.NewCampaignReadRepository(db),
+		read.NewContentReadRepository(db),
+		read.NewMediaReadRepository(db),
+	)
+	assertCreateAllowedHandler := cmdquota.NewAssertCreateAllowedHandler(
+		getQuotaUsageHandler,
+		write.NewAnalysisQuotaLocker(db),
+	)
+
 	extractHandler := mediacmd.NewExtractFramesHandler(
 		mediaRepo,
 		contentRepo,
 		outboxRepo,
 		minioStorage,
 		ffmpeg.NewExtractor(),
+		assertCreateAllowedHandler,
 	)
 
 	reg := registry.NewHandlerRegistry()

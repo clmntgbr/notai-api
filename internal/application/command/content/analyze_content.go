@@ -129,7 +129,8 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 	g, gctx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, h.maxConcurrentDetectors)
 
-	for _, d := range h.detectors {
+	detectors := h.selectDetectors(ctx, content.ClientID)
+	for _, d := range detectors {
 		d := d
 		weights[d.Name()] = d.ExpectedWeight()
 		g.Go(func() error {
@@ -207,7 +208,42 @@ func (h *AnalyzeContentHandler) Handle(ctx context.Context, cmd AnalyzeContentCo
 func isHardAnalysisQuotaError(err error) bool {
 	return errors.Is(err, cmdquota.ErrVerificationQuotaExceeded) ||
 		errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed) ||
-		errors.Is(err, cmdquota.ErrFileSizeQuotaExceeded)
+		errors.Is(err, cmdquota.ErrFileSizeQuotaExceeded) ||
+		errors.Is(err, cmdquota.ErrStorageQuotaExceeded)
+}
+
+// selectDetectors keeps every local detector and at most N external ones
+// (stable order: first external in the configured list wins when N >= 1).
+// Quota lookup failures fail closed (zero external detectors).
+func (h *AnalyzeContentHandler) selectDetectors(
+	ctx context.Context,
+	clientID uuid.UUID,
+) []domaincontent.Detector {
+	maxExternal := 0
+	if h.quota != nil {
+		usage, err := h.quota.Usage(ctx, clientID)
+		if err == nil {
+			maxExternal = usage.Limits.MaxDetectorsPerAnalysis
+			if maxExternal < 0 {
+				maxExternal = 0
+			}
+		}
+	} else {
+		return h.detectors
+	}
+
+	selected := make([]domaincontent.Detector, 0, len(h.detectors))
+	externalKept := 0
+	for _, d := range h.detectors {
+		if domaincontent.IsExternal(d) {
+			if externalKept >= maxExternal {
+				continue
+			}
+			externalKept++
+		}
+		selected = append(selected, d)
+	}
+	return selected
 }
 
 func (h *AnalyzeContentHandler) failQuotaBlockedAnalysis(

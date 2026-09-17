@@ -55,6 +55,16 @@ func TestRespondQuotaError_Mapping(t *testing.T) {
 			wantStatus: http.StatusForbidden,
 		},
 		{
+			name:       "batch upload quota exceeded",
+			err:        cmdquota.ErrBatchUploadQuotaExceeded,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "storage quota exceeded",
+			err:        cmdquota.ErrStorageQuotaExceeded,
+			wantStatus: http.StatusForbidden,
+		},
+		{
 			name:       "nil error",
 			err:        nil,
 			wantStatus: 0,

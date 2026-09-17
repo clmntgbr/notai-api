@@ -45,6 +45,8 @@ func New(cfg Config, storage port.Storage) *Detector {
 
 func (d *Detector) Name() string { return DetectorName }
 
+func (d *Detector) IsExternal() bool { return true }
+
 func (d *Detector) ExpectedWeight() float64 { return 1 }
 
 func (d *Detector) Analyze(

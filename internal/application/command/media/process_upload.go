@@ -78,6 +78,9 @@ func (h *ProcessUploadHandler) Handle(ctx context.Context, cmd ProcessUploadComm
 			if err := h.quota.AssertFileSize(ctx, media.ClientID, size); err != nil {
 				return h.fail(ctx, media, objectKey, err)
 			}
+			if err := h.quota.AssertStorageReserve(ctx, media.ClientID, size); err != nil {
+				return h.fail(ctx, media, objectKey, err)
+			}
 		}
 	}
 
@@ -119,6 +122,9 @@ func (h *ProcessUploadHandler) Handle(ctx context.Context, cmd ProcessUploadComm
 	}
 	if h.quota != nil {
 		if err := h.quota.AssertFileSize(ctx, media.ClientID, size); err != nil {
+			return h.fail(ctx, media, objectKey, err)
+		}
+		if err := h.quota.AssertStorageReserve(ctx, media.ClientID, size); err != nil {
 			return h.fail(ctx, media, objectKey, err)
 		}
 	}

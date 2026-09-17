@@ -59,6 +59,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	subscriptionReadRepo := read.NewSubscriptionReadRepository(db, read.NewPlanReadRepository(db, read.NewQuotaReadRepository(db)))
 	campaignReadRepo := read.NewCampaignReadRepository(db)
 	contentReadRepo := read.NewContentReadRepository(db)
+	mediaReadRepo := read.NewMediaReadRepository(db)
 	getQuotaUsageHandler := querysubscription.NewGetQuotaUsageHandler(
 		clientReadRepo,
 		workspaceReadRepo,
@@ -66,6 +67,7 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		read.NewPlanReadRepository(db, read.NewQuotaReadRepository(db)),
 		campaignReadRepo,
 		contentReadRepo,
+		mediaReadRepo,
 	)
 	assertCreateAllowedHandler := cmdquota.NewAssertCreateAllowedHandler(
 		getQuotaUsageHandler,

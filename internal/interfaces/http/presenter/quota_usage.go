@@ -46,6 +46,7 @@ type QuotaUsageResponse struct {
 	Campaigns          QuotaCounterResponse        `json:"campaigns"`
 	Verifications      MonthlyQuotaCounterResponse `json:"verifications"`
 	ConcurrentAnalyses QuotaCounterResponse        `json:"concurrentAnalyses"`
+	Storage            QuotaCounterResponse        `json:"storage"`
 	Limits             QuotaLimitsResponse         `json:"limits"`
 	PeriodStart        time.Time                   `json:"periodStart"`
 	PeriodEnd          time.Time                   `json:"periodEnd"`
@@ -74,6 +75,11 @@ func NewQuotaUsageResponse(usage *querysubscription.QuotaUsageView) QuotaUsageRe
 			Used: usage.ConcurrentAnalyses.Used,
 			Max:  usage.ConcurrentAnalyses.Max,
 			Left: usage.ConcurrentAnalyses.Left,
+		},
+		Storage: QuotaCounterResponse{
+			Used: usage.Storage.Used,
+			Max:  usage.Storage.Max,
+			Left: usage.Storage.Left,
 		},
 		Limits: QuotaLimitsResponse{
 			MaxFileSizeMB:                  usage.Limits.MaxFileSizeMB,

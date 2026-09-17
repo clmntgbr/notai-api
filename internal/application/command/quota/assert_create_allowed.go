@@ -18,6 +18,8 @@ var (
 	ErrConcurrentQuotaExceeded   = errors.New("Concurrent analysis quota exceeded for your current plan")
 	ErrFileSizeQuotaExceeded     = errors.New("File size exceeds the maximum allowed for your current plan")
 	ErrVideoAnalysisNotAllowed   = errors.New("Video analysis is not available on your current plan")
+	ErrBatchUploadQuotaExceeded  = errors.New("Batch upload size exceeds the maximum allowed for your current plan")
+	ErrStorageQuotaExceeded      = errors.New("Storage quota exceeded for your current plan")
 )
 
 type AssertCreateAllowedHandler struct {
@@ -122,6 +124,61 @@ func (h *AssertCreateAllowedHandler) AssertMediaUpload(
 	return nil
 }
 
+func (h *AssertCreateAllowedHandler) AssertBatchUpload(
+	ctx context.Context,
+	clientID uuid.UUID,
+	fileCount int,
+) error {
+	if fileCount <= 0 {
+		return nil
+	}
+	usage, err := h.getQuotaUsage.Handle(ctx, querysubscription.GetQuotaUsageQuery{ClientID: clientID})
+	if err != nil {
+		return err
+	}
+	maxBatch := usage.Limits.MaxBatchUploadSize
+	if maxBatch <= 0 {
+		maxBatch = domainmedia.MaxPresignBatch
+	}
+	if maxBatch > domainmedia.MaxPresignBatch {
+		maxBatch = domainmedia.MaxPresignBatch
+	}
+	if fileCount > maxBatch {
+		return ErrBatchUploadQuotaExceeded
+	}
+	return nil
+}
+
+func (h *AssertCreateAllowedHandler) AssertStorageReserve(
+	ctx context.Context,
+	clientID uuid.UUID,
+	additionalBytes int64,
+) error {
+	if additionalBytes <= 0 {
+		return nil
+	}
+	usage, err := h.getQuotaUsage.Handle(ctx, querysubscription.GetQuotaUsageQuery{ClientID: clientID})
+	if err != nil {
+		return err
+	}
+	maxBytes := int64(usage.Limits.MaxStorageGB) * 1024 * 1024 * 1024
+	if maxBytes <= 0 {
+		return nil
+	}
+	if usage.Storage.Used+additionalBytes > maxBytes {
+		return ErrStorageQuotaExceeded
+	}
+	return nil
+}
+
+// Usage returns the current quota usage snapshot for the client's billing workspace.
+func (h *AssertCreateAllowedHandler) Usage(
+	ctx context.Context,
+	clientID uuid.UUID,
+) (*querysubscription.QuotaUsageView, error) {
+	return h.getQuotaUsage.Handle(ctx, querysubscription.GetQuotaUsageQuery{ClientID: clientID})
+}
+
 // AssertAnalyze must run inside the same DB transaction that transitions the content
 // to analyzing, so the workspace advisory lock is held until the slot is reserved.
 func (h *AssertCreateAllowedHandler) AssertAnalyze(ctx context.Context, clientID uuid.UUID) error {
@@ -149,7 +206,12 @@ func assertVerificationSlots(usage *querysubscription.QuotaUsageView, count int)
 	if usage.Limits.OveragePriceCents > 0 {
 		return nil
 	}
-	if usage.Verifications.Left < int64(count) {
+	grace := usage.Limits.QuotaOverageGraceVerifications
+	if grace < 0 {
+		grace = 0
+	}
+	effectiveLeft := int64(usage.Verifications.Max) + int64(grace) - usage.Verifications.Used
+	if effectiveLeft < int64(count) {
 		return ErrVerificationQuotaExceeded
 	}
 	return nil

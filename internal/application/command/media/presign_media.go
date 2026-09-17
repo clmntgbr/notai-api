@@ -73,7 +73,11 @@ func (h *PresignMediaHandler) Handle(
 	if len(cmd.Files) == 0 {
 		return nil, domainmedia.ErrEmptyFileList
 	}
-	if len(cmd.Files) > domainmedia.MaxPresignBatch {
+	if h.quota != nil {
+		if err := h.quota.AssertBatchUpload(ctx, cmd.ClientID, len(cmd.Files)); err != nil {
+			return nil, err
+		}
+	} else if len(cmd.Files) > domainmedia.MaxPresignBatch {
 		return nil, domainmedia.ErrTooManyFiles
 	}
 

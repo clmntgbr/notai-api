@@ -24,7 +24,9 @@ func respondQuotaError(c fiber.Ctx, err error) (bool, error) {
 		errors.Is(err, cmdquota.ErrVerificationQuotaExceeded),
 		errors.Is(err, cmdquota.ErrConcurrentQuotaExceeded),
 		errors.Is(err, cmdquota.ErrFileSizeQuotaExceeded),
-		errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed):
+		errors.Is(err, cmdquota.ErrVideoAnalysisNotAllowed),
+		errors.Is(err, cmdquota.ErrBatchUploadQuotaExceeded),
+		errors.Is(err, cmdquota.ErrStorageQuotaExceeded):
 		return true, c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"message": err.Error(),
 		})
