@@ -121,9 +121,9 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 
 	var listQuery struct {
 		paginate.PaginateQuery
-		CampaignID string `query:"campaignId"`
-		Status     string `query:"status"`
-		Verdict    string `query:"verdict"`
+		CampaignIDs string `query:"campaignIds"`
+		Status      string `query:"status"`
+		Verdict     string `query:"verdict"`
 	}
 	if err := c.Bind().Query(&listQuery); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -131,12 +131,12 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 		})
 	}
 
-	var campaignID uuid.UUID
-	if listQuery.CampaignID != "" {
-		campaignID, err = uuid.Parse(listQuery.CampaignID)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid campaign id"})
-		}
+	campaignIDs, err := parseUUIDFilters(listQuery.CampaignIDs)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid campaign ids",
+			"errors":  fiber.Map{"campaignIds": err.Error()},
+		})
 	}
 
 	statuses, err := parseMediaStatusFilters(listQuery.Status)
@@ -164,11 +164,11 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 	}
 
 	result, err := h.listHandler.Handle(c.Context(), querymedia.ListByClientQuery{
-		ClientID:   clientID,
-		CampaignID: campaignID,
-		Statuses:   statuses,
-		Verdicts:   verdicts,
-		Query:      listQuery.PaginateQuery,
+		ClientID:    clientID,
+		CampaignIDs: campaignIDs,
+		Statuses:    statuses,
+		Verdicts:    verdicts,
+		Query:       listQuery.PaginateQuery,
 	})
 	if err != nil {
 		if err.Error() == "campaign not found" {

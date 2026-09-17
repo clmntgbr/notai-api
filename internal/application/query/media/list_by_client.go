@@ -13,11 +13,11 @@ import (
 )
 
 type ListByClientQuery struct {
-	ClientID   uuid.UUID
-	CampaignID uuid.UUID // optional; uuid.Nil = all campaigns for the client
-	Statuses   []string  // optional media statuses
-	Verdicts   []string  // optional verdict labels (verdict->>'label')
-	Query      paginate.PaginateQuery
+	ClientID    uuid.UUID
+	CampaignIDs []uuid.UUID // optional; empty = all campaigns for the client
+	Statuses    []string    // optional media statuses
+	Verdicts    []string    // optional verdict labels (verdict->>'label')
+	Query       paginate.PaginateQuery
 }
 
 type ListByClientResult struct {
@@ -46,20 +46,27 @@ func (h *ListByClientHandler) Handle(
 		return nil, errors.New("clientId is required")
 	}
 
-	if q.CampaignID != uuid.Nil {
-		campaign, err := h.campaignRepo.FindByID(ctx, q.CampaignID)
+	if len(q.CampaignIDs) > 0 {
+		campaigns, err := h.campaignRepo.FindByIDs(ctx, q.CampaignIDs)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get campaign: %w", err)
+			return nil, fmt.Errorf("failed to get campaigns: %w", err)
 		}
-		if campaign == nil || campaign.ClientID != q.ClientID {
-			return nil, errors.New("campaign not found")
+		byID := make(map[uuid.UUID]domaincampaign.CampaignView, len(campaigns))
+		for i := range campaigns {
+			byID[campaigns[i].ID] = campaigns[i]
+		}
+		for _, id := range q.CampaignIDs {
+			campaign, ok := byID[id]
+			if !ok || campaign.ClientID != q.ClientID {
+				return nil, errors.New("campaign not found")
+			}
 		}
 	}
 
 	views, total, err := h.mediaRepo.FindPageByClientID(
 		ctx,
 		q.ClientID,
-		q.CampaignID,
+		q.CampaignIDs,
 		q.Query,
 		q.Statuses,
 		q.Verdicts,

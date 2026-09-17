@@ -1077,7 +1077,7 @@ func TestMediaHandler_List_Success(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
-	if !list.called || list.query.ClientID != testutil.TestClientID || list.query.CampaignID != uuid.Nil {
+	if !list.called || list.query.ClientID != testutil.TestClientID || len(list.query.CampaignIDs) != 0 {
 		t.Fatalf("list query: %+v", list.query)
 	}
 	if len(list.query.Statuses) != 0 || len(list.query.Verdicts) != 0 {
@@ -1155,16 +1155,20 @@ func TestMediaHandler_List_WithCampaignFilter(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
+	secondCampaignID := uuid.MustParse("ef2f6b75-859e-40c6-9bad-8519578c7cd8")
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/medias?campaignId="+testutil.TestCampaignID.String(), nil))
+		"/medias?campaignIds="+testutil.TestCampaignID.String()+"%2C"+secondCampaignID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
-	if !list.called || list.query.CampaignID != testutil.TestCampaignID {
+	if !list.called || len(list.query.CampaignIDs) != 2 {
 		t.Fatalf("list query: %+v", list.query)
+	}
+	if list.query.CampaignIDs[0] != testutil.TestCampaignID || list.query.CampaignIDs[1] != secondCampaignID {
+		t.Fatalf("campaignIds: %#v", list.query.CampaignIDs)
 	}
 }
 
@@ -1270,7 +1274,7 @@ func TestMediaHandler_List_InvalidCampaignID(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?campaignId=not-a-uuid", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?campaignIds=not-a-uuid", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -1286,7 +1290,7 @@ func TestMediaHandler_List_CampaignNotFound(t *testing.T) {
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/medias?campaignId="+testutil.TestCampaignID.String(), nil))
+		"/medias?campaignIds="+testutil.TestCampaignID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
