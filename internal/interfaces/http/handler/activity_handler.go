@@ -29,7 +29,7 @@ func (h *ActivityHandler) List(c fiber.Ctx) error {
 
 	var listQuery struct {
 		paginate.PaginateQuery
-		CampaignIDs string `query:"campaignIds"`
+		CampaignIDs []string `query:"campaignIds"`
 	}
 	if err := c.Bind().Query(&listQuery); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

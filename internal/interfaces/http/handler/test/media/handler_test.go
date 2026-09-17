@@ -1318,7 +1318,7 @@ func TestMediaHandler_List_WithCampaignFilter(t *testing.T) {
 
 	secondCampaignID := uuid.MustParse("ef2f6b75-859e-40c6-9bad-8519578c7cd8")
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/medias?campaignIds="+testutil.TestCampaignID.String()+"%2C"+secondCampaignID.String(), nil))
+		"/medias?campaignIds[]="+testutil.TestCampaignID.String()+"&campaignIds[]="+secondCampaignID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -1342,7 +1342,7 @@ func TestMediaHandler_List_WithStatusAndVerdictFilters(t *testing.T) {
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/medias?status=processing%2Cfailed%2Cuploaded%2Cpending_upload&verdict=human%2Cuncertain%2Cai_generated",
+		"/medias?status[]=processing&status[]=failed&status[]=uploaded&status[]=pending_upload&verdict[]=human&verdict[]=uncertain&verdict[]=ai_generated",
 		nil,
 	))
 	if err != nil {
@@ -1455,7 +1455,7 @@ func TestMediaHandler_List_InvalidStatusFilter(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?status=bogus", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?status[]=bogus", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -1469,7 +1469,7 @@ func TestMediaHandler_List_InvalidVerdictFilter(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?verdict=maybe", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?verdict[]=maybe", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -1511,7 +1511,7 @@ func TestMediaHandler_List_InvalidCampaignID(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?campaignIds=not-a-uuid", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/medias?campaignIds[]=not-a-uuid", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -1527,7 +1527,7 @@ func TestMediaHandler_List_CampaignNotFound(t *testing.T) {
 	app.Get("/medias", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/medias?campaignIds="+testutil.TestCampaignID.String(), nil))
+		"/medias?campaignIds[]="+testutil.TestCampaignID.String(), nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}

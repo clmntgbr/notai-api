@@ -102,7 +102,7 @@ func TestActivityHandler_List_WithFilters(t *testing.T) {
 	app.Get("/activity", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/activity?search=flagged&from=2026-01-01&to=2026-01-31&campaignIds="+testutil.TestCampaignID.String(),
+		"/activity?search=flagged&from=2026-01-01&to=2026-01-31&campaignIds[]="+testutil.TestCampaignID.String(),
 		nil,
 	))
 	if err != nil {
@@ -176,7 +176,7 @@ func TestActivityHandler_List_InvalidCampaignIDs(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Get("/activity", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/activity?campaignIds=not-a-uuid", nil))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodGet, "/activity?campaignIds[]=not-a-uuid", nil))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestActivityHandler_List_CampaignNotFound(t *testing.T) {
 	app.Get("/activity", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.List)
 
 	resp, err := app.Test(mustJSONRequest(t, http.MethodGet,
-		"/activity?campaignIds="+testutil.TestCampaignID.String(),
+		"/activity?campaignIds[]="+testutil.TestCampaignID.String(),
 		nil,
 	))
 	if err != nil {

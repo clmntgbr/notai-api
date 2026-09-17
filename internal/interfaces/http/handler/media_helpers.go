@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func parseMediaStatusFilters(raw string) ([]string, error) {
-	values := splitCSVQuery(raw)
+func parseMediaStatusFilters(values []string) ([]string, error) {
+	values = trimQueryValues(values)
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -38,8 +38,8 @@ func parseMediaStatusFilters(raw string) ([]string, error) {
 	return out, nil
 }
 
-func parseMediaVerdictFilters(raw string) ([]string, error) {
-	values := splitCSVQuery(raw)
+func parseMediaVerdictFilters(values []string) ([]string, error) {
+	values = trimQueryValues(values)
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -59,8 +59,8 @@ func parseMediaVerdictFilters(raw string) ([]string, error) {
 	return out, nil
 }
 
-func parseUUIDFilters(raw string) ([]uuid.UUID, error) {
-	values := splitCSVQuery(raw)
+func parseUUIDFilters(values []string) ([]uuid.UUID, error) {
+	values = trimQueryValues(values)
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -80,19 +80,17 @@ func parseUUIDFilters(raw string) ([]uuid.UUID, error) {
 	return out, nil
 }
 
-func splitCSVQuery(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
+func trimQueryValues(values []string) []string {
+	if len(values) == 0 {
 		return nil
 	}
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
 			continue
 		}
-		out = append(out, part)
+		out = append(out, value)
 	}
 	return out
 }

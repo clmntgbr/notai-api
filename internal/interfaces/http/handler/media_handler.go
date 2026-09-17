@@ -121,9 +121,9 @@ func (h *MediaHandler) List(c fiber.Ctx) error {
 
 	var listQuery struct {
 		paginate.PaginateQuery
-		CampaignIDs string `query:"campaignIds"`
-		Status      string `query:"status"`
-		Verdict     string `query:"verdict"`
+		CampaignIDs []string `query:"campaignIds"`
+		Status      []string `query:"status"`
+		Verdict     []string `query:"verdict"`
 	}
 	if err := c.Bind().Query(&listQuery); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
