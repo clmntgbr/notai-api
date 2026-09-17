@@ -63,7 +63,7 @@ INSERT INTO quotas (
     'Free',
     2, 3, 20, 1,
     50, 7,
-    FALSE, FALSE, TRUE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
     0, 0,
     '2026-01-01T00:00:00Z',
     '2026-01-01T00:00:00Z'
@@ -73,7 +73,7 @@ INSERT INTO quotas (
     'Starter',
     5, 15, 200, 2,
     200, 30,
-    FALSE, TRUE, TRUE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
     25, 2,
     '2026-01-01T00:00:00Z',
     '2026-01-01T00:00:00Z'

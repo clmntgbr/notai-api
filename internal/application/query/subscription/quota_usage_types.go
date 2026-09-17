@@ -21,23 +21,33 @@ type MonthlyQuotaCounter struct {
 }
 
 type QuotaLimits struct {
-	MaxFileSizeMB       int
-	ReportRetentionDays int
-	AllowsVideoAnalysis bool
-	AllowsPDFExport     bool
-	AllowsCSVExport     bool
-	AllowsAPIAccess     bool
-	OveragePriceCents   int
-	AnalysisPriority    int
+	MaxFileSizeMB                  int
+	ReportRetentionDays            int
+	AllowsVideoAnalysis            bool
+	AllowsPDFExport                bool
+	AllowsCSVExport                bool
+	AllowsAPIAccess                bool
+	OveragePriceCents              int
+	AnalysisPriority               int
+	MaxDetectorsPerAnalysis        int
+	MaxFramesPerVideo              int
+	AllowsReanalysis               bool
+	MaxStorageGB                   int
+	MaxBatchUploadSize             int
+	FrameRetentionDays             int
+	AllowsCustomRuleset            bool
+	AllowsWhiteLabelReport         bool
+	AllowsWebhooks                 bool
+	QuotaOverageGraceVerifications int
 }
 
 type QuotaUsageView struct {
-	WorkspaceID         uuid.UUID
-	Members             QuotaCounter
-	Campaigns           QuotaCounter
-	Verifications       MonthlyQuotaCounter
-	ConcurrentAnalyses  QuotaCounter
-	Limits              QuotaLimits
-	PeriodStart         time.Time
-	PeriodEnd           time.Time
+	WorkspaceID        uuid.UUID
+	Members            QuotaCounter
+	Campaigns          QuotaCounter
+	Verifications      MonthlyQuotaCounter
+	ConcurrentAnalyses QuotaCounter
+	Limits             QuotaLimits
+	PeriodStart        time.Time
+	PeriodEnd          time.Time
 }

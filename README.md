@@ -229,5 +229,6 @@ See [`.env.dist`](.env.dist). Messaging / realtime:
 - Architecture conventions: [`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc)
 - User / auth / current client: [docs/user.md](docs/user.md)
 - Webhooks: [docs/webhooks.md](docs/webhooks.md)
+- Object storage (MinIO → AWS S3): [docs/storage.md](docs/storage.md)
 - Realtime: [docs/realtime.md](docs/realtime.md)
 - Handler tests: [docs/handler-tests.md](docs/handler-tests.md)

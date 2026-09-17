@@ -25,6 +25,17 @@ type QuotaResponse struct {
 	OveragePriceCents   int  `json:"overagePriceCents"`
 	AnalysisPriority    int  `json:"analysisPriority"`
 
+	MaxDetectorsPerAnalysis        int  `json:"maxDetectorsPerAnalysis"`
+	MaxFramesPerVideo              int  `json:"maxFramesPerVideo"`
+	AllowsReanalysis               bool `json:"allowsReanalysis"`
+	MaxStorageGB                   int  `json:"maxStorageGb"`
+	MaxBatchUploadSize             int  `json:"maxBatchUploadSize"`
+	FrameRetentionDays             int  `json:"frameRetentionDays"`
+	AllowsCustomRuleset            bool `json:"allowsCustomRuleset"`
+	AllowsWhiteLabelReport         bool `json:"allowsWhiteLabelReport"`
+	AllowsWebhooks                 bool `json:"allowsWebhooks"`
+	QuotaOverageGraceVerifications int  `json:"quotaOverageGraceVerifications"`
+
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -47,22 +58,32 @@ type PlanResponse struct {
 
 func NewQuotaResponseFromView(view domainquota.QuotaView) QuotaResponse {
 	return QuotaResponse{
-		ID:                       view.ID.String(),
-		Name:                     view.Name,
-		MaxClientMembers:         view.MaxClientMembers,
-		MaxCampaigns:             view.MaxCampaigns,
-		MaxVerificationsPerMonth: view.MaxVerificationsPerMonth,
-		MaxConcurrentAnalyses:    view.MaxConcurrentAnalyses,
-		MaxFileSizeMB:            view.MaxFileSizeMB,
-		ReportRetentionDays:      view.ReportRetentionDays,
-		AllowsVideoAnalysis:      view.AllowsVideoAnalysis,
-		AllowsPDFExport:          view.AllowsPDFExport,
-		AllowsCSVExport:          view.AllowsCSVExport,
-		AllowsAPIAccess:          view.AllowsAPIAccess,
-		OveragePriceCents:        view.OveragePriceCents,
-		AnalysisPriority:         view.AnalysisPriority,
-		CreatedAt:                view.CreatedAt,
-		UpdatedAt:                view.UpdatedAt,
+		ID:                             view.ID.String(),
+		Name:                           view.Name,
+		MaxClientMembers:               view.MaxClientMembers,
+		MaxCampaigns:                   view.MaxCampaigns,
+		MaxVerificationsPerMonth:       view.MaxVerificationsPerMonth,
+		MaxConcurrentAnalyses:          view.MaxConcurrentAnalyses,
+		MaxFileSizeMB:                  view.MaxFileSizeMB,
+		ReportRetentionDays:            view.ReportRetentionDays,
+		AllowsVideoAnalysis:            view.AllowsVideoAnalysis,
+		AllowsPDFExport:                view.AllowsPDFExport,
+		AllowsCSVExport:                view.AllowsCSVExport,
+		AllowsAPIAccess:                view.AllowsAPIAccess,
+		OveragePriceCents:              view.OveragePriceCents,
+		AnalysisPriority:               view.AnalysisPriority,
+		MaxDetectorsPerAnalysis:        view.MaxDetectorsPerAnalysis,
+		MaxFramesPerVideo:              view.MaxFramesPerVideo,
+		AllowsReanalysis:               view.AllowsReanalysis,
+		MaxStorageGB:                   view.MaxStorageGB,
+		MaxBatchUploadSize:             view.MaxBatchUploadSize,
+		FrameRetentionDays:             view.FrameRetentionDays,
+		AllowsCustomRuleset:            view.AllowsCustomRuleset,
+		AllowsWhiteLabelReport:         view.AllowsWhiteLabelReport,
+		AllowsWebhooks:                 view.AllowsWebhooks,
+		QuotaOverageGraceVerifications: view.QuotaOverageGraceVerifications,
+		CreatedAt:                      view.CreatedAt,
+		UpdatedAt:                      view.UpdatedAt,
 	}
 }
 

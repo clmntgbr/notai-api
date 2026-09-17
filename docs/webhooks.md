@@ -7,8 +7,12 @@ External providers push lifecycle events to the API. Signatures are verified in 
 | Provider | Path | Middleware |
 |----------|------|------------|
 | Clerk | `POST /webhooks/clerk` | Svix (`UserWebhookMiddleware`) |
+| MinIO / S3 object created | `POST /webhooks/minio/object-created` | Bearer (`MediaUploadWebhookMiddleware`, `MINIO_WEBHOOK_SECRET`) |
+| Stripe | `POST /webhooks/stripe` | Stripe signature (`BillingWebhookMiddleware`) |
 
 No Clerk JWT on webhook routes.
+
+For AWS S3 cutover (env, CORS, notifications), see [storage.md](storage.md).
 
 ## Clerk (user lifecycle)
 

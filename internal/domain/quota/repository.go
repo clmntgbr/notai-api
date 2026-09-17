@@ -36,6 +36,17 @@ type QuotaView struct {
 	OveragePriceCents        int
 	AnalysisPriority         int
 
+	MaxDetectorsPerAnalysis        int
+	MaxFramesPerVideo              int
+	AllowsReanalysis               bool
+	MaxStorageGB                   int
+	MaxBatchUploadSize             int
+	FrameRetentionDays             int
+	AllowsCustomRuleset            bool
+	AllowsWhiteLabelReport         bool
+	AllowsWebhooks                 bool
+	QuotaOverageGraceVerifications int
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

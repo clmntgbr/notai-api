@@ -21,14 +21,24 @@ type QuotaCounterResponse struct {
 }
 
 type QuotaLimitsResponse struct {
-	MaxFileSizeMB       int  `json:"maxFileSizeMb"`
-	ReportRetentionDays int  `json:"reportRetentionDays"`
-	AllowsVideoAnalysis bool `json:"allowsVideoAnalysis"`
-	AllowsPDFExport     bool `json:"allowsPdfExport"`
-	AllowsCSVExport     bool `json:"allowsCsvExport"`
-	AllowsAPIAccess     bool `json:"allowsApiAccess"`
-	OveragePriceCents   int  `json:"overagePriceCents"`
-	AnalysisPriority    int  `json:"analysisPriority"`
+	MaxFileSizeMB                  int  `json:"maxFileSizeMb"`
+	ReportRetentionDays            int  `json:"reportRetentionDays"`
+	AllowsVideoAnalysis            bool `json:"allowsVideoAnalysis"`
+	AllowsPDFExport                bool `json:"allowsPdfExport"`
+	AllowsCSVExport                bool `json:"allowsCsvExport"`
+	AllowsAPIAccess                bool `json:"allowsApiAccess"`
+	OveragePriceCents              int  `json:"overagePriceCents"`
+	AnalysisPriority               int  `json:"analysisPriority"`
+	MaxDetectorsPerAnalysis        int  `json:"maxDetectorsPerAnalysis"`
+	MaxFramesPerVideo              int  `json:"maxFramesPerVideo"`
+	AllowsReanalysis               bool `json:"allowsReanalysis"`
+	MaxStorageGB                   int  `json:"maxStorageGb"`
+	MaxBatchUploadSize             int  `json:"maxBatchUploadSize"`
+	FrameRetentionDays             int  `json:"frameRetentionDays"`
+	AllowsCustomRuleset            bool `json:"allowsCustomRuleset"`
+	AllowsWhiteLabelReport         bool `json:"allowsWhiteLabelReport"`
+	AllowsWebhooks                 bool `json:"allowsWebhooks"`
+	QuotaOverageGraceVerifications int  `json:"quotaOverageGraceVerifications"`
 }
 
 type QuotaUsageResponse struct {
@@ -66,14 +76,24 @@ func NewQuotaUsageResponse(usage *querysubscription.QuotaUsageView) QuotaUsageRe
 			Left: usage.ConcurrentAnalyses.Left,
 		},
 		Limits: QuotaLimitsResponse{
-			MaxFileSizeMB:       usage.Limits.MaxFileSizeMB,
-			ReportRetentionDays: usage.Limits.ReportRetentionDays,
-			AllowsVideoAnalysis: usage.Limits.AllowsVideoAnalysis,
-			AllowsPDFExport:     usage.Limits.AllowsPDFExport,
-			AllowsCSVExport:     usage.Limits.AllowsCSVExport,
-			AllowsAPIAccess:     usage.Limits.AllowsAPIAccess,
-			OveragePriceCents:   usage.Limits.OveragePriceCents,
-			AnalysisPriority:    usage.Limits.AnalysisPriority,
+			MaxFileSizeMB:                  usage.Limits.MaxFileSizeMB,
+			ReportRetentionDays:            usage.Limits.ReportRetentionDays,
+			AllowsVideoAnalysis:            usage.Limits.AllowsVideoAnalysis,
+			AllowsPDFExport:                usage.Limits.AllowsPDFExport,
+			AllowsCSVExport:                usage.Limits.AllowsCSVExport,
+			AllowsAPIAccess:                usage.Limits.AllowsAPIAccess,
+			OveragePriceCents:              usage.Limits.OveragePriceCents,
+			AnalysisPriority:               usage.Limits.AnalysisPriority,
+			MaxDetectorsPerAnalysis:        usage.Limits.MaxDetectorsPerAnalysis,
+			MaxFramesPerVideo:              usage.Limits.MaxFramesPerVideo,
+			AllowsReanalysis:               usage.Limits.AllowsReanalysis,
+			MaxStorageGB:                   usage.Limits.MaxStorageGB,
+			MaxBatchUploadSize:             usage.Limits.MaxBatchUploadSize,
+			FrameRetentionDays:             usage.Limits.FrameRetentionDays,
+			AllowsCustomRuleset:            usage.Limits.AllowsCustomRuleset,
+			AllowsWhiteLabelReport:         usage.Limits.AllowsWhiteLabelReport,
+			AllowsWebhooks:                 usage.Limits.AllowsWebhooks,
+			QuotaOverageGraceVerifications: usage.Limits.QuotaOverageGraceVerifications,
 		},
 		PeriodStart: usage.PeriodStart,
 		PeriodEnd:   usage.PeriodEnd,

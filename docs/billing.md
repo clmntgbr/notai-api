@@ -52,6 +52,27 @@ Enforced inside application commands (not HTTP middleware). Handlers map quota e
 | `max_concurrent_analyses` | content analyze start — workspace-wide (soft retry / deferred) |
 | `max_file_size_mb` | media process upload |
 | `allows_video_analysis` | media presign / process upload |
+| `max_detectors_per_analysis` | **not enforced yet** — external IA detectors per analysis (0 = local heuristics only) |
+| `max_frames_per_video` | **not enforced yet** — video sampling cap (0 when video disabled) |
+| `allows_reanalysis` | **not enforced yet** — re-run analysis on already processed media |
+| `max_storage_gb` | **not enforced yet** — total stored bytes (originals + frames), workspace-wide |
+| `max_batch_upload_size` | **not enforced yet** — max files per presign batch |
+| `frame_retention_days` | **not enforced yet** — purge extracted frames earlier than reports |
+| `allows_custom_ruleset` | **not enforced yet** — client-tunable detection thresholds |
+| `allows_white_label_report` | **not enforced yet** — branded PDF report |
+| `allows_webhooks` | **not enforced yet** — outbound campaign-verified notifications |
+| `quota_overage_grace_verifications` | **not enforced yet** — soft buffer beyond monthly verification quota before hard block |
+
+Seed values (migrations `00032` / `00033`):
+
+| Quota | detectors | frames | reanalysis | storage GB | batch | frame retention | custom ruleset | white-label | webhooks | grace |
+|-------|-----------|--------|------------|------------|-------|-----------------|----------------|-------------|----------|-------|
+| Free | 0 | 0 | no | 1 | 5 | 1d | no | no | no | 0 |
+| Starter | 0 | 0 | no | 5 | 10 | 7d | no | no | no | 5 |
+| Pro | 1 | 12 | yes | 50 | 20 | 30d | no | yes | yes | 10 |
+| Business | 3 | 30 | yes | 250 | 50 | 90d | yes | yes | yes | 20 |
+
+Exposed on `GET /api/plans` (`quota.*`) and `GET /api/quota` (`limits.*`).
 
 `max_verifications_per_month` is checked when analysis starts, under a per-workspace DB advisory lock in the same transaction that moves the content to `analyzing` (avoids overshoot under concurrent workers).
 
