@@ -8,6 +8,7 @@ const (
 	EventTypeMediaProcessingStarted = "media.processing_started.v1"
 	EventTypeMediaStatusChanged     = "media.status_changed.v1"
 	EventTypeMediaVerdictRendered   = "media.verdict_rendered.v1"
+	EventTypeMediaDeleted           = "media.deleted.v1"
 )
 
 type MediaUploadRequested struct {
@@ -91,3 +92,26 @@ func (e MediaVerdictRendered) EventID() string       { return e.ID }
 func (e MediaVerdictRendered) EventType() string     { return EventTypeMediaVerdictRendered }
 func (e MediaVerdictRendered) AggregateID() string   { return e.MediaID }
 func (e MediaVerdictRendered) OccurredAt() time.Time { return e.Timestamp }
+
+// MediaDeletedContentKey is a content-owned object pair snapshotted at soft-delete time.
+type MediaDeletedContentKey struct {
+	ObjectKey    string `json:"objectKey,omitempty"`
+	ThumbnailKey string `json:"thumbnailKey,omitempty"`
+}
+
+// MediaDeleted is emitted when a media is soft-deleted so workers can purge storage objects.
+type MediaDeleted struct {
+	ID           string                   `json:"eventId"`
+	MediaID      string                   `json:"mediaId"`
+	CampaignID   string                   `json:"campaignId"`
+	ClientID     string                   `json:"clientId"`
+	ObjectKey    string                   `json:"objectKey"`
+	ThumbnailKey string                   `json:"thumbnailKey,omitempty"`
+	Contents     []MediaDeletedContentKey `json:"contents,omitempty"`
+	Timestamp    time.Time                `json:"timestamp"`
+}
+
+func (e MediaDeleted) EventID() string       { return e.ID }
+func (e MediaDeleted) EventType() string     { return EventTypeMediaDeleted }
+func (e MediaDeleted) AggregateID() string   { return e.MediaID }
+func (e MediaDeleted) OccurredAt() time.Time { return e.Timestamp }

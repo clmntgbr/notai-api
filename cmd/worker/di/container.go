@@ -24,6 +24,7 @@ import (
 	"go-api/internal/infrastructure/persistence/processed"
 	"go-api/internal/infrastructure/persistence/read"
 	"go-api/internal/infrastructure/persistence/write"
+	"go-api/internal/infrastructure/storage"
 
 	"gorm.io/gorm"
 )
@@ -70,6 +71,14 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 	publishCampaignRealtime := eventcampaign.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
 	publishContentRealtime := eventcontent.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
 	publishMediaRealtime := eventmedia.NewPublishRealtimeHandler(realtimePublisher, clientReadRepo)
+
+	minioStorage, err := storage.NewMinIOStorage(env)
+	if err != nil {
+		log.Fatalf("failed to init storage: %v", err)
+	}
+	deleteMediaObjects := eventmedia.NewDeleteObjectsOnDeletedHandler(minioStorage)
+	deleteCampaignObjects := eventcampaign.NewDeleteObjectsOnDeletedHandler(minioStorage)
+
 	reg := registry.NewHandlerRegistry()
 
 	reg.Register(domainuser.EventTypeUserCreated, dedup.With(
@@ -209,6 +218,11 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"publish_campaign_deleted_realtime",
 		publishCampaignRealtime.OnDeleted,
 	))
+	reg.Register(domaincampaign.EventTypeCampaignDeleted, dedup.With(
+		dedupRepo,
+		"delete_campaign_objects_on_deleted",
+		deleteCampaignObjects.Handle,
+	))
 	reg.Register(domaincampaign.EventTypeCampaignBackgroundUpdated, dedup.With(
 		dedupRepo,
 		"campaign_background_updated",
@@ -275,6 +289,11 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		dedupRepo,
 		"project_activity_on_media_verdict_rendered",
 		activityProjector.OnMediaVerdictRendered,
+	))
+	reg.Register(domainmedia.EventTypeMediaDeleted, dedup.With(
+		dedupRepo,
+		"delete_media_objects_on_deleted",
+		deleteMediaObjects.Handle,
 	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)

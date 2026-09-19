@@ -230,14 +230,51 @@ func (m *Media) IsDeleted() bool {
 	return m.DeletedAt != nil
 }
 
-// SoftDelete marks the media as deleted. Idempotent when already soft-deleted.
-func (m *Media) SoftDelete() {
+// SoftDeleteObjectRef is a content object key pair collected before soft-delete.
+type SoftDeleteObjectRef struct {
+	ObjectKey    string
+	ThumbnailKey string
+}
+
+// SoftDelete marks the media as deleted and records media.deleted.v1 with storage keys.
+// contentRefs must be collected before soft-delete: content rows are unreachable via
+// deleted_at filters afterwards. Idempotent when already soft-deleted (no second event).
+func (m *Media) SoftDelete(contentRefs []SoftDeleteObjectRef) {
 	if m.IsDeleted() {
 		return
 	}
 	now := time.Now().UTC()
 	m.DeletedAt = &now
 	m.UpdatedAt = now
+
+	contents := make([]MediaDeletedContentKey, 0, len(contentRefs))
+	for _, ref := range contentRefs {
+		objectKey := strings.TrimSpace(ref.ObjectKey)
+		thumbnailKey := strings.TrimSpace(ref.ThumbnailKey)
+		if objectKey == "" && thumbnailKey == "" {
+			continue
+		}
+		contents = append(contents, MediaDeletedContentKey{
+			ObjectKey:    objectKey,
+			ThumbnailKey: thumbnailKey,
+		})
+	}
+
+	thumbnailKey := ""
+	if m.MediaType == MediaTypeImage {
+		thumbnailKey = NewThumbnailKey(m.ClientID, m.CampaignID, m.ID)
+	}
+
+	m.recordEvent(MediaDeleted{
+		ID:           uuid.New().String(),
+		MediaID:      m.ID.String(),
+		CampaignID:   m.CampaignID.String(),
+		ClientID:     m.ClientID.String(),
+		ObjectKey:    m.ObjectKey,
+		ThumbnailKey: thumbnailKey,
+		Contents:     contents,
+		Timestamp:    now,
+	})
 }
 
 func (m *Media) MarkUploaded(sizeBytes int64, contentType string) error {

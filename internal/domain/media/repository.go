@@ -16,8 +16,7 @@ type MediaWriteRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Media, error)
 	GetByObjectKey(ctx context.Context, objectKey string) (*Media, error)
 	ListProcessingUpdatedBefore(ctx context.Context, before time.Time, limit int) ([]*Media, error)
-	// SoftDeleteByCampaignID soft-deletes all active medias for a campaign.
-	SoftDeleteByCampaignID(ctx context.Context, campaignID uuid.UUID) error
+	ListActiveByCampaignID(ctx context.Context, campaignID uuid.UUID) ([]*Media, error)
 }
 
 type MediaReadRepository interface {

@@ -15,8 +15,8 @@ type CampaignCreated struct {
 	ClientID   string     `json:"clientId"`
 	Name       string     `json:"name"`
 	IsDefault  bool       `json:"isDefault"`
-	StartAt  *time.Time `json:"startAt,omitempty"`
-	EndAt    *time.Time `json:"endAt,omitempty"`
+	StartAt    *time.Time `json:"startAt,omitempty"`
+	EndAt      *time.Time `json:"endAt,omitempty"`
 	Timestamp  time.Time  `json:"timestamp"`
 }
 
@@ -30,8 +30,8 @@ type CampaignUpdated struct {
 	CampaignID string     `json:"campaignId"`
 	ClientID   string     `json:"clientId"`
 	Name       string     `json:"name"`
-	StartAt  *time.Time `json:"startAt,omitempty"`
-	EndAt    *time.Time `json:"endAt,omitempty"`
+	StartAt    *time.Time `json:"startAt,omitempty"`
+	EndAt      *time.Time `json:"endAt,omitempty"`
 	Timestamp  time.Time  `json:"timestamp"`
 }
 
@@ -41,10 +41,12 @@ func (e CampaignUpdated) AggregateID() string   { return e.CampaignID }
 func (e CampaignUpdated) OccurredAt() time.Time { return e.Timestamp }
 
 type CampaignDeleted struct {
-	ID         string    `json:"eventId"`
-	CampaignID string    `json:"campaignId"`
-	ClientID   string    `json:"clientId"`
-	Timestamp  time.Time `json:"timestamp"`
+	ID                     string    `json:"eventId"`
+	CampaignID             string    `json:"campaignId"`
+	ClientID               string    `json:"clientId"`
+	BackgroundPendingKey   string    `json:"backgroundPendingKey,omitempty"`
+	BackgroundThumbnailKey string    `json:"backgroundThumbnailKey,omitempty"`
+	Timestamp              time.Time `json:"timestamp"`
 }
 
 func (e CampaignDeleted) EventID() string       { return e.ID }

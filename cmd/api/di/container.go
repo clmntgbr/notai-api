@@ -150,7 +150,12 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		assertCreateAllowedHandler,
 	)
 	updateCampaignHandler := campaigncmd.NewUpdateCampaignHandler(campaignWriteRepo, outboxRepo)
-	deleteCampaignHandler := campaigncmd.NewDeleteCampaignHandler(campaignWriteRepo, mediaWriteRepo, outboxRepo)
+	deleteCampaignHandler := campaigncmd.NewDeleteCampaignHandler(
+		campaignWriteRepo,
+		mediaWriteRepo,
+		contentWriteRepo,
+		outboxRepo,
+	)
 	presignBackgroundHandler := campaigncmd.NewPresignBackgroundHandler(
 		campaignWriteRepo,
 		outboxRepo,

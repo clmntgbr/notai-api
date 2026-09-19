@@ -23,8 +23,8 @@ type Campaign struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
-	StartAt *time.Time
-	EndAt   *time.Time
+	StartAt   *time.Time
+	EndAt     *time.Time
 
 	BackgroundStatus       string
 	BackgroundPendingKey   string
@@ -59,8 +59,8 @@ func NewCampaign(name string, clientID uuid.UUID, startAt, endAt *time.Time) (*C
 		IsDefault:        false,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		StartAt:        cloneTimePtr(startAt),
-		EndAt:          cloneTimePtr(endAt),
+		StartAt:          cloneTimePtr(startAt),
+		EndAt:            cloneTimePtr(endAt),
 		BackgroundStatus: BackgroundStatusNone,
 	}
 	c.recordEvent(CampaignCreated{
@@ -69,8 +69,8 @@ func NewCampaign(name string, clientID uuid.UUID, startAt, endAt *time.Time) (*C
 		ClientID:   clientID.String(),
 		Name:       c.Name,
 		IsDefault:  false,
-		StartAt:  timePtrValue(c.StartAt),
-		EndAt:    timePtrValue(c.EndAt),
+		StartAt:    timePtrValue(c.StartAt),
+		EndAt:      timePtrValue(c.EndAt),
 		Timestamp:  now,
 	})
 	return c, nil
@@ -127,8 +127,8 @@ func (c *Campaign) ApplyUpdate(name string, startAt, endAt *time.Time) error {
 		CampaignID: c.ID.String(),
 		ClientID:   c.ClientID.String(),
 		Name:       c.Name,
-		StartAt:  timePtrValue(c.StartAt),
-		EndAt:    timePtrValue(c.EndAt),
+		StartAt:    timePtrValue(c.StartAt),
+		EndAt:      timePtrValue(c.EndAt),
 		Timestamp:  c.UpdatedAt,
 	})
 	return nil
@@ -161,10 +161,12 @@ func (c *Campaign) SoftDelete() error {
 	c.DeletedAt = &now
 	c.UpdatedAt = now
 	c.recordEvent(CampaignDeleted{
-		ID:         uuid.New().String(),
-		CampaignID: c.ID.String(),
-		ClientID:   c.ClientID.String(),
-		Timestamp:  now,
+		ID:                     uuid.New().String(),
+		CampaignID:             c.ID.String(),
+		ClientID:               c.ClientID.String(),
+		BackgroundPendingKey:   c.BackgroundPendingKey,
+		BackgroundThumbnailKey: c.BackgroundThumbnailKey,
+		Timestamp:              now,
 	})
 	return nil
 }

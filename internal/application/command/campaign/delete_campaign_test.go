@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domaincampaign "go-api/internal/domain/campaign"
+	domaincontent "go-api/internal/domain/content"
 	"go-api/internal/domain/event"
 	domainmedia "go-api/internal/domain/media"
 	"go-api/internal/domain/port"
@@ -46,37 +47,72 @@ func (r *memCampaignRepo) GetByBackgroundPendingKey(context.Context, string) (*d
 	return nil, nil
 }
 
-type memMediaSoftDeleteRepo struct {
-	byCampaign map[uuid.UUID][]*domainmedia.Media
-	fail       bool
+type memMediaDeleteRepo struct {
+	byID       map[uuid.UUID]*domainmedia.Media
+	updateFail bool
 }
 
-func (r *memMediaSoftDeleteRepo) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+func (r *memMediaDeleteRepo) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return fn(ctx)
 }
-func (r *memMediaSoftDeleteRepo) Save(context.Context, *domainmedia.Media) error { return nil }
-func (r *memMediaSoftDeleteRepo) Update(context.Context, *domainmedia.Media) error {
+func (r *memMediaDeleteRepo) Save(_ context.Context, media *domainmedia.Media) error {
+	r.byID[media.ID] = media
 	return nil
 }
-func (r *memMediaSoftDeleteRepo) GetByID(context.Context, uuid.UUID) (*domainmedia.Media, error) {
+func (r *memMediaDeleteRepo) Update(_ context.Context, media *domainmedia.Media) error {
+	if r.updateFail {
+		return errors.New("update failed")
+	}
+	r.byID[media.ID] = media
+	return nil
+}
+func (r *memMediaDeleteRepo) GetByID(_ context.Context, id uuid.UUID) (*domainmedia.Media, error) {
+	m := r.byID[id]
+	if m == nil || m.IsDeleted() {
+		return nil, nil
+	}
+	return m, nil
+}
+func (r *memMediaDeleteRepo) GetByObjectKey(context.Context, string) (*domainmedia.Media, error) {
 	return nil, nil
 }
-func (r *memMediaSoftDeleteRepo) GetByObjectKey(context.Context, string) (*domainmedia.Media, error) {
-	return nil, nil
-}
-func (r *memMediaSoftDeleteRepo) ListProcessingUpdatedBefore(
+func (r *memMediaDeleteRepo) ListProcessingUpdatedBefore(
 	context.Context, time.Time, int,
 ) ([]*domainmedia.Media, error) {
 	return nil, nil
 }
-func (r *memMediaSoftDeleteRepo) SoftDeleteByCampaignID(_ context.Context, campaignID uuid.UUID) error {
-	if r.fail {
-		return errors.New("media soft delete failed")
+func (r *memMediaDeleteRepo) ListActiveByCampaignID(
+	_ context.Context,
+	campaignID uuid.UUID,
+) ([]*domainmedia.Media, error) {
+	out := make([]*domainmedia.Media, 0)
+	for _, m := range r.byID {
+		if m.CampaignID == campaignID && !m.IsDeleted() {
+			out = append(out, m)
+		}
 	}
-	for _, m := range r.byCampaign[campaignID] {
-		m.SoftDelete()
-	}
+	return out, nil
+}
+
+type memContentDeleteRepo struct {
+	byMedia map[uuid.UUID][]domaincontent.Content
+}
+
+func (r *memContentDeleteRepo) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+func (r *memContentDeleteRepo) Save(context.Context, *domaincontent.Content) error { return nil }
+func (r *memContentDeleteRepo) Update(context.Context, *domaincontent.Content) error {
 	return nil
+}
+func (r *memContentDeleteRepo) GetByID(context.Context, uuid.UUID) (*domaincontent.Content, error) {
+	return nil, nil
+}
+func (r *memContentDeleteRepo) GetByObjectKey(context.Context, string) (*domaincontent.Content, error) {
+	return nil, nil
+}
+func (r *memContentDeleteRepo) ListByMediaID(_ context.Context, mediaID uuid.UUID) ([]domaincontent.Content, error) {
+	return r.byMedia[mediaID], nil
 }
 
 type memOutbox struct {
@@ -92,7 +128,7 @@ func (o *memOutbox) FetchUnpublished(context.Context, int) ([]port.OutboxMessage
 }
 func (o *memOutbox) MarkPublished(context.Context, []uuid.UUID) error { return nil }
 
-func TestDeleteCampaignHandler_SoftDeletesMedias(t *testing.T) {
+func TestDeleteCampaignHandler_SoftDeletesMediasAndEmitsMediaDeleted(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
 	campaign, err := domaincampaign.NewCampaign("Launch", uuid.New(), &start, &end)
@@ -105,19 +141,31 @@ func TestDeleteCampaignHandler_SoftDeletesMedias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("media a: %v", err)
 	}
+	_ = mediaA.PullEvents()
 	mediaB, err := domainmedia.NewPendingUpload(campaign.ID, campaign.ClientID, "b.jpg", "image/jpeg")
 	if err != nil {
 		t.Fatalf("media b: %v", err)
 	}
+	_ = mediaB.PullEvents()
+
+	thumb := "thumb-a.jpg"
+	contentA := domaincontent.Content{
+		ID:           uuid.New(),
+		MediaID:      mediaA.ID,
+		ObjectKey:    mediaA.ObjectKey,
+		ThumbnailKey: &thumb,
+	}
 
 	campaignRepo := &memCampaignRepo{byID: map[uuid.UUID]*domaincampaign.Campaign{campaign.ID: campaign}}
-	mediaRepo := &memMediaSoftDeleteRepo{
-		byCampaign: map[uuid.UUID][]*domainmedia.Media{
-			campaign.ID: {mediaA, mediaB},
-		},
-	}
+	mediaRepo := &memMediaDeleteRepo{byID: map[uuid.UUID]*domainmedia.Media{
+		mediaA.ID: mediaA,
+		mediaB.ID: mediaB,
+	}}
+	contentRepo := &memContentDeleteRepo{byMedia: map[uuid.UUID][]domaincontent.Content{
+		mediaA.ID: {contentA},
+	}}
 	outbox := &memOutbox{}
-	h := NewDeleteCampaignHandler(campaignRepo, mediaRepo, outbox)
+	h := NewDeleteCampaignHandler(campaignRepo, mediaRepo, contentRepo, outbox)
 
 	if err := h.Handle(context.Background(), DeleteCampaignCommand{ID: campaign.ID}); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -128,12 +176,31 @@ func TestDeleteCampaignHandler_SoftDeletesMedias(t *testing.T) {
 	if !mediaA.IsDeleted() || !mediaB.IsDeleted() {
 		t.Fatal("medias should be soft-deleted")
 	}
-	if len(outbox.events) == 0 {
-		t.Fatal("expected campaign deleted event")
+
+	var mediaDeleted int
+	for _, e := range outbox.events {
+		if e.EventType() == domainmedia.EventTypeMediaDeleted {
+			mediaDeleted++
+			deleted, ok := e.(domainmedia.MediaDeleted)
+			if !ok {
+				t.Fatalf("unexpected event type %T", e)
+			}
+			if deleted.MediaID == mediaA.ID.String() {
+				if deleted.ObjectKey != mediaA.ObjectKey {
+					t.Fatalf("object key: got %s", deleted.ObjectKey)
+				}
+				if len(deleted.Contents) != 1 || deleted.Contents[0].ThumbnailKey != thumb {
+					t.Fatalf("contents: %+v", deleted.Contents)
+				}
+			}
+		}
+	}
+	if mediaDeleted != 2 {
+		t.Fatalf("media.deleted events: got %d want 2", mediaDeleted)
 	}
 }
 
-func TestDeleteCampaignHandler_MediaFailureKeepsCampaign(t *testing.T) {
+func TestDeleteCampaignHandler_MediaUpdateFailure(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
 	campaign, err := domaincampaign.NewCampaign("Launch", uuid.New(), &start, &end)
@@ -142,11 +209,18 @@ func TestDeleteCampaignHandler_MediaFailureKeepsCampaign(t *testing.T) {
 	}
 	_ = campaign.PullEvents()
 
-	// In-memory WithTransaction does not roll back; assert SoftDeleteByCampaignID is called
-	// after campaign update by failing media delete and checking the returned error.
+	mediaA, err := domainmedia.NewPendingUpload(campaign.ID, campaign.ClientID, "a.jpg", "image/jpeg")
+	if err != nil {
+		t.Fatalf("media a: %v", err)
+	}
+	_ = mediaA.PullEvents()
+
 	campaignRepo := &memCampaignRepo{byID: map[uuid.UUID]*domaincampaign.Campaign{campaign.ID: campaign}}
-	mediaRepo := &memMediaSoftDeleteRepo{fail: true}
-	h := NewDeleteCampaignHandler(campaignRepo, mediaRepo, &memOutbox{})
+	mediaRepo := &memMediaDeleteRepo{
+		byID:       map[uuid.UUID]*domainmedia.Media{mediaA.ID: mediaA},
+		updateFail: true,
+	}
+	h := NewDeleteCampaignHandler(campaignRepo, mediaRepo, &memContentDeleteRepo{}, &memOutbox{})
 
 	err = h.Handle(context.Background(), DeleteCampaignCommand{ID: campaign.ID})
 	if err == nil || err.Error() != "failed to delete campaign medias" {

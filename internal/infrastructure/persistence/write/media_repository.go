@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type mediaWriteRepository struct {
@@ -89,13 +90,22 @@ func (r *mediaWriteRepository) ListProcessingUpdatedBefore(
 	return out, nil
 }
 
-func (r *mediaWriteRepository) SoftDeleteByCampaignID(ctx context.Context, campaignID uuid.UUID) error {
-	now := time.Now().UTC()
-	return DBWithContext(ctx, r.db).
-		Model(&MediaModel{}).
+func (r *mediaWriteRepository) ListActiveByCampaignID(
+	ctx context.Context,
+	campaignID uuid.UUID,
+) ([]*domainmedia.Media, error) {
+	var models []MediaModel
+	err := DBWithContext(ctx, r.db).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("campaign_id = ? AND deleted_at IS NULL", campaignID).
-		Updates(map[string]any{
-			"deleted_at": now,
-			"updated_at": now,
-		}).Error
+		Order("created_at ASC").
+		Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*domainmedia.Media, 0, len(models))
+	for i := range models {
+		out = append(out, mediaDomainFromModel(&models[i]))
+	}
+	return out, nil
 }

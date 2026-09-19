@@ -69,13 +69,17 @@ func (r *memMediaRepo) ListProcessingUpdatedBefore(
 	return out, nil
 }
 
-func (r *memMediaRepo) SoftDeleteByCampaignID(_ context.Context, campaignID uuid.UUID) error {
+func (r *memMediaRepo) ListActiveByCampaignID(
+	_ context.Context,
+	campaignID uuid.UUID,
+) ([]*domainmedia.Media, error) {
+	out := make([]*domainmedia.Media, 0)
 	for _, m := range r.byID {
-		if m.CampaignID == campaignID {
-			m.SoftDelete()
+		if m.CampaignID == campaignID && !m.IsDeleted() {
+			out = append(out, cloneMedia(m))
 		}
 	}
-	return nil
+	return out, nil
 }
 
 func cloneMedia(m *domainmedia.Media) *domainmedia.Media {
