@@ -38,6 +38,7 @@ type MediaReadRepository interface {
 	) (*MediaStats, error)
 	// SumStorageBytesByWorkspaceID sums media originals + extracted frame object sizes
 	// (frame_index IS NOT NULL) for the workspace billing scope.
+	// Soft-deleted medias still count toward storage quota.
 	SumStorageBytesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 }
 

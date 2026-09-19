@@ -295,6 +295,11 @@ func NewContainer(db *gorm.DB, env *config.Config) *Container {
 		"delete_media_objects_on_deleted",
 		deleteMediaObjects.Handle,
 	))
+	reg.Register(domainmedia.EventTypeMediaDeleted, dedup.With(
+		dedupRepo,
+		"publish_media_deleted_realtime",
+		publishMediaRealtime.OnDeleted,
+	))
 
 	consumer := rabbitmq.NewConsumer(conn, reg, env.WorkerConcurrency, env.WorkerMaxRetries)
 

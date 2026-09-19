@@ -185,6 +185,9 @@ func TestDeleteCampaignHandler_SoftDeletesMediasAndEmitsMediaDeleted(t *testing.
 			if !ok {
 				t.Fatalf("unexpected event type %T", e)
 			}
+			if !deleted.Cascade {
+				t.Fatal("cascade soft-delete must set Cascade=true")
+			}
 			if deleted.MediaID == mediaA.ID.String() {
 				if deleted.ObjectKey != mediaA.ObjectKey {
 					t.Fatalf("object key: got %s", deleted.ObjectKey)

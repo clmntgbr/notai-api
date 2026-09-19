@@ -237,7 +237,6 @@ func (r *campaignReadRepository) CountNonDefaultByClientID(
 		Model(&campaignRow{}).
 		Where("client_id = ?", clientID).
 		Where("is_default = false").
-		Where("deleted_at IS NULL").
 		Count(&count).Error
 	return count, err
 }
@@ -252,7 +251,6 @@ func (r *campaignReadRepository) CountNonDefaultByWorkspaceID(
 		Joins("INNER JOIN clients ON clients.id = campaigns.client_id").
 		Where("clients.workspace_id = ?", workspaceID).
 		Where("campaigns.is_default = false").
-		Where("campaigns.deleted_at IS NULL").
 		Count(&count).Error
 	return count, err
 }

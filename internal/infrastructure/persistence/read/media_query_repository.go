@@ -509,14 +509,12 @@ func (r *mediaReadRepository) SumStorageBytesByWorkspaceID(
 			FROM media m
 			JOIN clients c ON c.id = m.client_id
 			WHERE c.workspace_id = @workspaceID
-			  AND m.deleted_at IS NULL
 		), 0) + COALESCE((
 			SELECT SUM(COALESCE(ct.size_bytes, 0))
 			FROM contents ct
 			JOIN media m ON m.id = ct.media_id
 			JOIN clients c ON c.id = m.client_id
 			WHERE c.workspace_id = @workspaceID
-			  AND m.deleted_at IS NULL
 			  AND ct.frame_index IS NOT NULL
 		), 0)
 	`, map[string]any{"workspaceID": workspaceID}).Scan(&total).Error

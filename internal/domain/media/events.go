@@ -100,6 +100,8 @@ type MediaDeletedContentKey struct {
 }
 
 // MediaDeleted is emitted when a media is soft-deleted so workers can purge storage objects.
+// When Cascade is true (campaign delete), Centrifugo must not publish a per-media event —
+// clients react to campaign.deleted instead.
 type MediaDeleted struct {
 	ID           string                   `json:"eventId"`
 	MediaID      string                   `json:"mediaId"`
@@ -108,6 +110,7 @@ type MediaDeleted struct {
 	ObjectKey    string                   `json:"objectKey"`
 	ThumbnailKey string                   `json:"thumbnailKey,omitempty"`
 	Contents     []MediaDeletedContentKey `json:"contents,omitempty"`
+	Cascade      bool                     `json:"cascade,omitempty"`
 	Timestamp    time.Time                `json:"timestamp"`
 }
 

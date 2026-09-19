@@ -239,7 +239,8 @@ type SoftDeleteObjectRef struct {
 // SoftDelete marks the media as deleted and records media.deleted.v1 with storage keys.
 // contentRefs must be collected before soft-delete: content rows are unreachable via
 // deleted_at filters afterwards. Idempotent when already soft-deleted (no second event).
-func (m *Media) SoftDelete(contentRefs []SoftDeleteObjectRef) {
+// Pass cascade=true when deleting as part of a campaign soft-delete so realtime stays quiet.
+func (m *Media) SoftDelete(contentRefs []SoftDeleteObjectRef, cascade bool) {
 	if m.IsDeleted() {
 		return
 	}
@@ -273,6 +274,7 @@ func (m *Media) SoftDelete(contentRefs []SoftDeleteObjectRef) {
 		ObjectKey:    m.ObjectKey,
 		ThumbnailKey: thumbnailKey,
 		Contents:     contents,
+		Cascade:      cascade,
 		Timestamp:    now,
 	})
 }

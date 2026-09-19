@@ -14,8 +14,9 @@ import (
 )
 
 // PublishRealtimeHandler emits Centrifugo events only for:
-// create (upload_requested), uploaded, analyzing (processing), and terminal
-// outcomes via verdict_rendered (analyzed or failed).
+// create (upload_requested), uploaded, analyzing (processing), terminal
+// outcomes via verdict_rendered (analyzed or failed), and standalone deletes.
+// Cascade deletes (campaign soft-delete) skip realtime — clients use campaign.deleted.
 type PublishRealtimeHandler struct {
 	publisher  *realtime.Publisher
 	clientRepo domainclient.ClientReadRepository
@@ -65,6 +66,17 @@ func (h *PublishRealtimeHandler) OnVerdictRendered(ctx context.Context, payload 
 		return messaging.NonRetryable(err)
 	}
 	return h.publishToClientMembers(ctx, realtime.ActionVerdictRendered, evt.ClientID, evt)
+}
+
+func (h *PublishRealtimeHandler) OnDeleted(ctx context.Context, payload []byte) error {
+	var evt domainmedia.MediaDeleted
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return messaging.NonRetryable(err)
+	}
+	if evt.Cascade {
+		return nil
+	}
+	return h.publishToClientMembers(ctx, realtime.ActionDeleted, evt.ClientID, evt)
 }
 
 func (h *PublishRealtimeHandler) publishToClientMembers(

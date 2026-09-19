@@ -66,7 +66,7 @@ func (h *DeleteCampaignHandler) Handle(ctx context.Context, cmd DeleteCampaignCo
 			if err != nil {
 				return err
 			}
-			media.SoftDelete(refs)
+			media.SoftDelete(refs, true)
 			if err := h.mediaRepo.Update(txCtx, media); err != nil {
 				return errors.New("failed to delete campaign medias")
 			}
