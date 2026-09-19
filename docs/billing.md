@@ -68,7 +68,7 @@ Seed values (migrations `00032` / `00033`):
 | Quota | detectors | frames | reanalysis | storage GB | batch | frame retention | custom ruleset | white-label | webhooks | grace |
 |-------|-----------|--------|------------|------------|-------|-----------------|----------------|-------------|----------|-------|
 | Free | 0 | 0 | no | 1 | 5 | 1d | no | no | no | 0 |
-| Starter | 0 | 0 | no | 5 | 10 | 7d | no | no | no | 5 |
+| Starter | 1 | 0 | no | 5 | 10 | 7d | no | no | no | 5 |
 | Pro | 1 | 12 | yes | 50 | 20 | 30d | no | yes | yes | 10 |
 | Business | 3 | 30 | yes | 250 | 50 | 90d | yes | yes | yes | 20 |
 

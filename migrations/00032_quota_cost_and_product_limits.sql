@@ -28,9 +28,9 @@ UPDATE quotas SET
     updated_at = NOW()
 WHERE id = '99f2f76e-dc5c-4131-abf6-0e5e307945fb';
 
--- Starter: still no external detectors / no video; slightly higher storage & batch.
+-- Starter: one external detector, no video; slightly higher storage & batch.
 UPDATE quotas SET
-    max_detectors_per_analysis = 0,
+    max_detectors_per_analysis = 1,
     max_frames_per_video = 0,
     allows_reanalysis = FALSE,
     max_storage_gb = 5,
