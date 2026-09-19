@@ -35,7 +35,9 @@ func (r *mediaWriteRepository) Update(ctx context.Context, media *domainmedia.Me
 
 func (r *mediaWriteRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainmedia.Media, error) {
 	var model MediaModel
-	err := DBWithContext(ctx, r.db).First(&model, "id = ?", id).Error
+	err := DBWithContext(ctx, r.db).
+		Where("deleted_at IS NULL").
+		First(&model, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -50,7 +52,9 @@ func (r *mediaWriteRepository) GetByObjectKey(
 	objectKey string,
 ) (*domainmedia.Media, error) {
 	var model MediaModel
-	err := DBWithContext(ctx, r.db).First(&model, "object_key = ?", objectKey).Error
+	err := DBWithContext(ctx, r.db).
+		Where("deleted_at IS NULL").
+		First(&model, "object_key = ?", objectKey).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -70,6 +74,7 @@ func (r *mediaWriteRepository) ListProcessingUpdatedBefore(
 	}
 	var models []MediaModel
 	err := DBWithContext(ctx, r.db).
+		Where("deleted_at IS NULL").
 		Where("status = ? AND updated_at < ?", string(domainmedia.StatusProcessing), before.UTC()).
 		Order("updated_at ASC").
 		Limit(limit).
@@ -82,4 +87,15 @@ func (r *mediaWriteRepository) ListProcessingUpdatedBefore(
 		out = append(out, mediaDomainFromModel(&models[i]))
 	}
 	return out, nil
+}
+
+func (r *mediaWriteRepository) SoftDeleteByCampaignID(ctx context.Context, campaignID uuid.UUID) error {
+	now := time.Now().UTC()
+	return DBWithContext(ctx, r.db).
+		Model(&MediaModel{}).
+		Where("campaign_id = ? AND deleted_at IS NULL", campaignID).
+		Updates(map[string]any{
+			"deleted_at": now,
+			"updated_at": now,
+		}).Error
 }

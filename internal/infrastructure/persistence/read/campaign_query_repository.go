@@ -204,6 +204,7 @@ func (r *campaignReadRepository) attachContentCounts(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
 		Where("campaign_id IN ?", ids).
+		Where("deleted_at IS NULL").
 		Group("campaign_id").
 		Scan(&rows).Error
 	if err != nil {

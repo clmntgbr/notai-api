@@ -35,14 +35,14 @@ func (r *memMediaRepo) Update(ctx context.Context, media *domainmedia.Media) err
 }
 func (r *memMediaRepo) GetByID(ctx context.Context, id uuid.UUID) (*domainmedia.Media, error) {
 	m := r.byID[id]
-	if m == nil {
+	if m == nil || m.IsDeleted() {
 		return nil, nil
 	}
 	return cloneMedia(m), nil
 }
 func (r *memMediaRepo) GetByObjectKey(ctx context.Context, objectKey string) (*domainmedia.Media, error) {
 	for _, m := range r.byID {
-		if m.ObjectKey == objectKey {
+		if m.ObjectKey == objectKey && !m.IsDeleted() {
 			return cloneMedia(m), nil
 		}
 	}
@@ -56,6 +56,9 @@ func (r *memMediaRepo) ListProcessingUpdatedBefore(
 ) ([]*domainmedia.Media, error) {
 	out := make([]*domainmedia.Media, 0)
 	for _, m := range r.byID {
+		if m.IsDeleted() {
+			continue
+		}
 		if m.Status == domainmedia.StatusProcessing && m.UpdatedAt.Before(before) {
 			out = append(out, cloneMedia(m))
 			if limit > 0 && len(out) >= limit {
@@ -64,6 +67,15 @@ func (r *memMediaRepo) ListProcessingUpdatedBefore(
 		}
 	}
 	return out, nil
+}
+
+func (r *memMediaRepo) SoftDeleteByCampaignID(_ context.Context, campaignID uuid.UUID) error {
+	for _, m := range r.byID {
+		if m.CampaignID == campaignID {
+			m.SoftDelete()
+		}
+	}
+	return nil
 }
 
 func cloneMedia(m *domainmedia.Media) *domainmedia.Media {

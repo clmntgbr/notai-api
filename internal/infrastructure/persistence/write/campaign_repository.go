@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type campaignWriteRepository struct {
@@ -35,6 +36,24 @@ func (r *campaignWriteRepository) Update(ctx context.Context, campaign *domainca
 func (r *campaignWriteRepository) GetByID(ctx context.Context, id uuid.UUID) (*domaincampaign.Campaign, error) {
 	var model CampaignModel
 	err := DBWithContext(ctx, r.db).
+		Where("deleted_at IS NULL").
+		First(&model, "id = ?", id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return campaignDomainFromModel(&model), nil
+}
+
+func (r *campaignWriteRepository) GetByIDForUpdate(
+	ctx context.Context,
+	id uuid.UUID,
+) (*domaincampaign.Campaign, error) {
+	var model CampaignModel
+	err := DBWithContext(ctx, r.db).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("deleted_at IS NULL").
 		First(&model, "id = ?", id).Error
 	if err != nil {

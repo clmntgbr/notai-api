@@ -26,6 +26,7 @@ type MediaModel struct {
 	AnalyzedAt    *time.Time   `gorm:"column:analyzed_at"`
 	CreatedAt     time.Time    `gorm:"column:created_at"`
 	UpdatedAt     time.Time    `gorm:"column:updated_at"`
+	DeletedAt     *time.Time   `gorm:"column:deleted_at"`
 }
 
 func (MediaModel) TableName() string { return "media" }
@@ -55,6 +56,7 @@ func mediaModelFromDomain(m *domainmedia.Media) *MediaModel {
 		AnalyzedAt:    m.AnalyzedAt,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
+		DeletedAt:     m.DeletedAt,
 	}
 }
 
@@ -85,5 +87,6 @@ func mediaDomainFromModel(m *MediaModel) *domainmedia.Media {
 		AnalyzedAt:    m.AnalyzedAt,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
+		DeletedAt:     m.DeletedAt,
 	}
 }

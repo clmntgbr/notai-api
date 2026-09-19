@@ -172,7 +172,7 @@ func (h *ProcessUploadHandler) handleImage(
 			return errors.New("failed to get media")
 		}
 		if fresh == nil {
-			return errors.New("media not found")
+			return nil
 		}
 		if fresh.Status != domainmedia.StatusPendingUpload || fresh.ObjectKey != objectKey {
 			return nil
@@ -223,7 +223,7 @@ func (h *ProcessUploadHandler) handleVideo(
 			return errors.New("failed to get media")
 		}
 		if fresh == nil {
-			return errors.New("media not found")
+			return nil
 		}
 		if fresh.Status != domainmedia.StatusPendingUpload || fresh.ObjectKey != objectKey {
 			return nil

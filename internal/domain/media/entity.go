@@ -77,6 +77,7 @@ type Media struct {
 	AnalyzedAt    *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	DeletedAt     *time.Time
 
 	events []event.DomainEvent
 }
@@ -223,6 +224,20 @@ func (m *Media) PullEvents() []event.DomainEvent {
 
 func (m *Media) recordEvent(e event.DomainEvent) {
 	m.events = append(m.events, e)
+}
+
+func (m *Media) IsDeleted() bool {
+	return m.DeletedAt != nil
+}
+
+// SoftDelete marks the media as deleted. Idempotent when already soft-deleted.
+func (m *Media) SoftDelete() {
+	if m.IsDeleted() {
+		return
+	}
+	now := time.Now().UTC()
+	m.DeletedAt = &now
+	m.UpdatedAt = now
 }
 
 func (m *Media) MarkUploaded(sizeBytes int64, contentType string) error {

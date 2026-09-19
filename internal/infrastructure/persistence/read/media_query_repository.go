@@ -49,6 +49,7 @@ func (r *mediaReadRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 	var row mediaRow
 	err := r.db.WithContext(ctx).
 		Select(mediaSelectCols).
+		Where("deleted_at IS NULL").
 		First(&row, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -82,7 +83,8 @@ func (r *mediaReadRepository) FindPageByClientID(
 
 	db := r.db.WithContext(ctx).
 		Model(&mediaRow{}).
-		Where("client_id = ?", clientID)
+		Where("client_id = ?", clientID).
+		Where("deleted_at IS NULL")
 	if len(campaignIDs) > 0 {
 		db = db.Where("campaign_id IN ?", campaignIDs)
 	}
@@ -144,8 +146,12 @@ func (r *mediaReadRepository) FindContentsByMediaID(
 	}
 	err := r.db.WithContext(ctx).
 		Table("contents").
-		Where("media_id = ?", mediaID).
-		Order("frame_index ASC NULLS FIRST, created_at ASC").
+		Select(`contents.id, contents.media_id, contents.frame_index, contents.timestamp_ms,
+			contents.object_key, contents.thumbnail_key, contents.size_bytes, contents.status,
+			contents.label, contents.confidence, contents.created_at, contents.updated_at`).
+		Joins("JOIN media ON media.id = contents.media_id").
+		Where("contents.media_id = ? AND media.deleted_at IS NULL", mediaID).
+		Order("contents.frame_index ASC NULLS FIRST, contents.created_at ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
@@ -198,7 +204,8 @@ func (r *mediaReadRepository) CountStatsByClientID(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ? AND created_at >= ? AND created_at <= ?", clientID, from, to)
+		Where("client_id = ? AND created_at >= ? AND created_at <= ?", clientID, from, to).
+		Where("deleted_at IS NULL")
 	if campaignID != nil {
 		q = q.Where("campaign_id = ?", *campaignID)
 	}
@@ -303,7 +310,8 @@ func (r *mediaReadRepository) countDashboardKPIsByClientID(
 				  AND verdict->>'label' = 'uncertain'
 			) AS prev_uncertain
 		FROM media
-		WHERE client_id = @clientID`+campaignFilter+`
+		WHERE client_id = @clientID
+		  AND deleted_at IS NULL`+campaignFilter+`
 	`, params).Scan(&row).Error
 	if err != nil {
 		return nil, err
@@ -423,7 +431,8 @@ func (r *mediaReadRepository) countDailyControlsByClientID(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ? AND created_at >= ? AND created_at <= ?", clientID, from, to)
+		Where("client_id = ? AND created_at >= ? AND created_at <= ?", clientID, from, to).
+		Where("deleted_at IS NULL")
 	if campaignID != nil {
 		q = q.Where("campaign_id = ?", *campaignID)
 	}
@@ -500,12 +509,14 @@ func (r *mediaReadRepository) SumStorageBytesByWorkspaceID(
 			FROM media m
 			JOIN clients c ON c.id = m.client_id
 			WHERE c.workspace_id = @workspaceID
+			  AND m.deleted_at IS NULL
 		), 0) + COALESCE((
 			SELECT SUM(COALESCE(ct.size_bytes, 0))
 			FROM contents ct
 			JOIN media m ON m.id = ct.media_id
 			JOIN clients c ON c.id = m.client_id
 			WHERE c.workspace_id = @workspaceID
+			  AND m.deleted_at IS NULL
 			  AND ct.frame_index IS NOT NULL
 		), 0)
 	`, map[string]any{"workspaceID": workspaceID}).Scan(&total).Error

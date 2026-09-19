@@ -27,7 +27,7 @@ func (r *contentReadRepository) CountByClientIDAndStatus(
 	err := r.db.WithContext(ctx).
 		Table("contents").
 		Joins("JOIN media ON media.id = contents.media_id").
-		Where("media.client_id = ? AND contents.status = ?", clientID, status).
+		Where("media.client_id = ? AND contents.status = ? AND media.deleted_at IS NULL", clientID, status).
 		Count(&count).Error
 	return count, err
 }
@@ -43,7 +43,7 @@ func (r *contentReadRepository) CountByClientIDAndStatusInPeriod(
 		Table("contents").
 		Joins("JOIN media ON media.id = contents.media_id").
 		Where(
-			"media.client_id = ? AND contents.status = ? AND media.analyzed_at >= ? AND media.analyzed_at < ?",
+			"media.client_id = ? AND contents.status = ? AND media.deleted_at IS NULL AND media.analyzed_at >= ? AND media.analyzed_at < ?",
 			clientID,
 			status,
 			from,
@@ -58,6 +58,7 @@ func (r *contentReadRepository) CountByClientIDAndStatusInPeriod(
 // Analyzed units use media.analyzed_at when the media is finalized; otherwise contents.updated_at
 // (set when the content verdict is rendered) so in-flight finals still consume a slot.
 // Uploaded / pending_upload are not reserved — quota is checked when analysis starts.
+// Soft-deleted medias free concurrent analyzing slots but keep historical analyzed usage.
 func (r *contentReadRepository) CountQuotaUnitsByClientIDInPeriod(
 	ctx context.Context,
 	clientID uuid.UUID,
@@ -69,7 +70,7 @@ func (r *contentReadRepository) CountQuotaUnitsByClientIDInPeriod(
 		JOIN media ON media.id = contents.media_id
 		WHERE media.client_id = @clientID
 		  AND (
-			contents.status = 'analyzing'
+			(contents.status = 'analyzing' AND media.deleted_at IS NULL)
 			OR (
 				contents.status = 'analyzed'
 				AND COALESCE(media.analyzed_at, contents.updated_at) >= @from
@@ -94,7 +95,7 @@ func (r *contentReadRepository) CountByWorkspaceIDAndStatus(
 		Table("contents").
 		Joins("JOIN media ON media.id = contents.media_id").
 		Joins("JOIN clients ON clients.id = media.client_id").
-		Where("clients.workspace_id = ? AND contents.status = ?", workspaceID, status).
+		Where("clients.workspace_id = ? AND contents.status = ? AND media.deleted_at IS NULL", workspaceID, status).
 		Count(&count).Error
 	return count, err
 }
@@ -111,7 +112,7 @@ func (r *contentReadRepository) CountQuotaUnitsByWorkspaceIDInPeriod(
 		JOIN clients ON clients.id = media.client_id
 		WHERE clients.workspace_id = @workspaceID
 		  AND (
-			contents.status = 'analyzing'
+			(contents.status = 'analyzing' AND media.deleted_at IS NULL)
 			OR (
 				contents.status = 'analyzed'
 				AND COALESCE(media.analyzed_at, contents.updated_at) >= @from

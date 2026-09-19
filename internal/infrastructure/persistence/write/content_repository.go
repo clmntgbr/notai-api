@@ -38,7 +38,7 @@ func (r *contentWriteRepository) GetByID(ctx context.Context, id uuid.UUID) (*do
 		Table("contents").
 		Select("contents.*, media.campaign_id, media.client_id").
 		Joins("JOIN media ON media.id = contents.media_id").
-		Where("contents.id = ?", id).
+		Where("contents.id = ? AND media.deleted_at IS NULL", id).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -58,7 +58,7 @@ func (r *contentWriteRepository) GetByObjectKey(
 		Table("contents").
 		Select("contents.*, media.campaign_id, media.client_id").
 		Joins("JOIN media ON media.id = contents.media_id").
-		Where("contents.object_key = ?", objectKey).
+		Where("contents.object_key = ? AND media.deleted_at IS NULL", objectKey).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -78,7 +78,7 @@ func (r *contentWriteRepository) ListByMediaID(
 		Table("contents").
 		Select("contents.*, media.campaign_id, media.client_id").
 		Joins("JOIN media ON media.id = contents.media_id").
-		Where("contents.media_id = ?", mediaID).
+		Where("contents.media_id = ? AND media.deleted_at IS NULL", mediaID).
 		Order("contents.frame_index ASC NULLS FIRST, contents.created_at ASC").
 		Find(&rows).Error
 	if err != nil {
