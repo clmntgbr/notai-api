@@ -85,8 +85,11 @@ func (h *CampaignHandler) Create(c fiber.Ctx) error {
 		if handled, quotaErr := respondQuotaError(c, err); handled {
 			return quotaErr
 		}
+		if errors.Is(err, domaincampaign.ErrMissingSchedule) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "startAt and endAt are required"})
+		}
 		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "endAt must be after startAt"})
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "startAt must be before or equal to endAt"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to create campaign"})
 	}
@@ -232,8 +235,11 @@ func (h *CampaignHandler) Update(c fiber.Ctx) error {
 				"code":    "DEFAULT_CAMPAIGN_PROTECTED",
 			})
 		}
+		if errors.Is(err, domaincampaign.ErrMissingSchedule) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "startAt and endAt are required"})
+		}
 		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "endAt must be after startAt"})
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "startAt must be before or equal to endAt"})
 		}
 		if err.Error() == "campaign not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Campaign not found"})

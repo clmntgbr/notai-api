@@ -11,7 +11,8 @@ import (
 
 var (
 	ErrDefaultCampaignProtected = errors.New("default campaign cannot be modified")
-	ErrInvalidSchedule          = errors.New("endAt must be after startAt")
+	ErrMissingSchedule          = errors.New("startAt and endAt are required")
+	ErrInvalidSchedule          = errors.New("startAt must be before or equal to endAt")
 )
 
 type Campaign struct {
@@ -37,7 +38,10 @@ type Campaign struct {
 const DefaultCampaignName = "Default"
 
 func ValidateSchedule(startAt, endAt *time.Time) error {
-	if startAt != nil && endAt != nil && endAt.Before(*startAt) {
+	if startAt == nil || endAt == nil {
+		return ErrMissingSchedule
+	}
+	if endAt.Before(*startAt) {
 		return ErrInvalidSchedule
 	}
 	return nil

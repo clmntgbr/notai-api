@@ -15,13 +15,13 @@ type SetCurrentClientRequest struct {
 }
 
 type CreateCampaignRequest struct {
-	Name      string     `json:"name" validate:"required,min=1,max=255"`
-	StartAt *time.Time `json:"startAt"`
-	EndAt   *time.Time `json:"endAt"`
+	Name    string     `json:"name" validate:"required,min=1,max=255"`
+	StartAt *time.Time `json:"startAt" validate:"required"`
+	EndAt   *time.Time `json:"endAt" validate:"required"`
 }
 
 type UpdateCampaignRequest struct {
-	Name      string     `json:"name" validate:"required,min=1,max=255"`
-	StartAt *time.Time `json:"startAt"`
-	EndAt   *time.Time `json:"endAt"`
+	Name    string     `json:"name" validate:"required,min=1,max=255"`
+	StartAt *time.Time `json:"startAt" validate:"required"`
+	EndAt   *time.Time `json:"endAt" validate:"required"`
 }

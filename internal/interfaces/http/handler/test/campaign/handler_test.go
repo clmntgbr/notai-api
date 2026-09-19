@@ -257,13 +257,21 @@ func mustJSONRequest(t *testing.T, method, path string, body any) *http.Request 
 	return req
 }
 
+func validCampaignBody(name string) map[string]any {
+	return map[string]any{
+		"name":    name,
+		"startAt": "2026-01-01T00:00:00Z",
+		"endAt":   "2026-06-30T23:59:59Z",
+	}
+}
+
 func TestCampaignHandler_Create_Success(t *testing.T) {
 	create := &mockCreateCampaignHandler{result: sampleCampaignEntity()}
 	h := newCampaignHandler(create, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "Spring Launch"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", validCampaignBody("Spring Launch")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -272,6 +280,9 @@ func TestCampaignHandler_Create_Success(t *testing.T) {
 	}
 	if !create.called || create.cmd.ClientID != testutil.TestClientID || create.cmd.Name != "Spring Launch" {
 		t.Fatalf("create cmd: %+v", create.cmd)
+	}
+	if create.cmd.StartAt == nil || create.cmd.EndAt == nil {
+		t.Fatalf("expected startAt/endAt, got %+v", create.cmd)
 	}
 }
 
@@ -294,13 +305,46 @@ func TestCampaignHandler_Create_InvalidSchedule(t *testing.T) {
 	}
 }
 
+func TestCampaignHandler_Create_MissingSchedule(t *testing.T) {
+	create := &mockCreateCampaignHandler{}
+	h := newCampaignHandler(create, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "Spring Launch"}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if create.called {
+		t.Fatal("create must not be called")
+	}
+}
+
+func TestCampaignHandler_Create_HandlerMissingSchedule(t *testing.T) {
+	create := &mockCreateCampaignHandler{err: domaincampaign.ErrMissingSchedule}
+	h := newCampaignHandler(create, nil, nil, nil, nil, nil)
+	app := testutil.NewTestApp()
+	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", validCampaignBody("Spring Launch")))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
 func TestCampaignHandler_Create_QuotaExceeded(t *testing.T) {
 	create := &mockCreateCampaignHandler{err: cmdquota.ErrCampaignQuotaExceeded}
 	h := newCampaignHandler(create, nil, nil, nil, nil, nil)
 	app := testutil.NewTestApp()
 	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "Spring Launch"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", validCampaignBody("Spring Launch")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -314,7 +358,7 @@ func TestCampaignHandler_Create_Unauthorized(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Post("/campaigns", h.Create)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "x"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", validCampaignBody("x")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -329,7 +373,7 @@ func TestCampaignHandler_Create_MissingActiveClient(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Post("/campaigns", testutil.WithUserWithoutClient(testutil.TestUserID), h.Create)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "x"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", validCampaignBody("x")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -347,7 +391,11 @@ func TestCampaignHandler_Create_InvalidInput(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": ""}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{
+		"name":    "",
+		"startAt": "2026-01-01T00:00:00Z",
+		"endAt":   "2026-06-30T23:59:59Z",
+	}))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -365,7 +413,7 @@ func TestCampaignHandler_Create_HandlerError_Internal(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Post("/campaigns", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Create)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", map[string]any{"name": "Spring Launch"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPost, "/campaigns", validCampaignBody("Spring Launch")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -540,7 +588,7 @@ func TestCampaignHandler_Update_Success(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Updated"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("Updated")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -549,6 +597,9 @@ func TestCampaignHandler_Update_Success(t *testing.T) {
 	}
 	if !update.called || update.cmd.Name != "Updated" {
 		t.Fatalf("update: %+v", update.cmd)
+	}
+	if update.cmd.StartAt == nil || update.cmd.EndAt == nil {
+		t.Fatalf("expected startAt/endAt, got %+v", update.cmd)
 	}
 }
 
@@ -805,7 +856,7 @@ func TestCampaignHandler_Update_InvalidInput(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": ""}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -817,6 +868,41 @@ func TestCampaignHandler_Update_InvalidInput(t *testing.T) {
 	}
 }
 
+func TestCampaignHandler_Update_MissingSchedule(t *testing.T) {
+	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{sampleCampaignView()}, errs: []error{nil}}
+	update := &mockUpdateCampaignHandler{}
+	h := newCampaignHandler(nil, update, nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Updated"}))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	if update.called {
+		t.Fatal("update must not be called")
+	}
+}
+
+func TestCampaignHandler_Update_HandlerMissingSchedule(t *testing.T) {
+	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{sampleCampaignView()}, errs: []error{nil}}
+	update := &mockUpdateCampaignHandler{err: domaincampaign.ErrMissingSchedule}
+	h := newCampaignHandler(nil, update, nil, getByID, nil, nil)
+	app := testutil.NewTestApp()
+	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
+
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("Updated")))
+	if err != nil {
+		t.Fatalf("perform request: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
 func TestCampaignHandler_Update_HandlerNotFound(t *testing.T) {
 	getByID := &mockGetCampaignByIDHandler{views: []*domaincampaign.CampaignView{sampleCampaignView()}, errs: []error{nil}}
 	update := &mockUpdateCampaignHandler{err: errors.New("campaign not found")}
@@ -824,7 +910,7 @@ func TestCampaignHandler_Update_HandlerNotFound(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Updated"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("Updated")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -840,7 +926,7 @@ func TestCampaignHandler_Update_DefaultProtected(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Nope"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("Nope")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -876,7 +962,7 @@ func TestCampaignHandler_Update_HandlerError_Internal(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Updated"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("Updated")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}
@@ -895,7 +981,7 @@ func TestCampaignHandler_Update_ReloadFailure(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Put("/campaigns/:id", testutil.WithActiveClient(testutil.TestUserID, testutil.TestClientID), h.Update)
 
-	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), map[string]any{"name": "Updated"}))
+	resp, err := app.Test(mustJSONRequest(t, http.MethodPut, "/campaigns/"+testutil.TestCampaignID.String(), validCampaignBody("Updated")))
 	if err != nil {
 		t.Fatalf("perform request: %v", err)
 	}

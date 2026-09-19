@@ -41,18 +41,18 @@ type MediaReadRepository interface {
 }
 
 type MediaStats struct {
-	PendingUpload   int64
-	Uploaded        int64
-	Processing      int64
-	Analyzed        int64
-	Failed          int64
-	Human           int64
-	AIGenerated     int64
-	Uncertain       int64
-	From            time.Time
-	To              time.Time
-	MonthlyControls []MediaMonthlyStats
-	KPIs            MediaDashboardKPIs
+	PendingUpload int64
+	Uploaded      int64
+	Processing    int64
+	Analyzed      int64
+	Failed        int64
+	Human         int64
+	AIGenerated   int64
+	Uncertain     int64
+	From          time.Time
+	To            time.Time
+	DailyControls []MediaDailyStats
+	KPIs          MediaDashboardKPIs
 }
 
 // MediaDashboardKPIs are the agency home cards for the selected period vs the previous
@@ -74,8 +74,9 @@ type MediaDashboardKPIs struct {
 	AIGeneratedSharePercent float64 // share of period verifications
 }
 
-type MediaMonthlyStats struct {
-	Month         string // YYYY-MM (UTC)
+// MediaDailyStats is one UTC calendar day of status/verdict counts.
+type MediaDailyStats struct {
+	Day           string // YYYY-MM-DD (UTC)
 	PendingUpload int64
 	Uploaded      int64
 	Processing    int64

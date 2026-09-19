@@ -206,7 +206,7 @@ func (r *mediaReadRepository) CountStatsByClientID(
 		return nil, err
 	}
 
-	monthly, err := r.countMonthlyControlsByClientID(ctx, clientID, campaignID, to)
+	daily, err := r.countDailyControlsByClientID(ctx, clientID, campaignID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -217,18 +217,18 @@ func (r *mediaReadRepository) CountStatsByClientID(
 	}
 
 	return &domainmedia.MediaStats{
-		PendingUpload:   row.PendingUpload,
-		Uploaded:        row.Uploaded,
-		Processing:      row.Processing,
-		Analyzed:        row.Analyzed,
-		Failed:          row.Failed,
-		Human:           row.Human,
-		AIGenerated:     row.AIGenerated,
-		Uncertain:       row.Uncertain,
-		From:            from,
-		To:              to,
-		MonthlyControls: monthly,
-		KPIs:            *kpis,
+		PendingUpload: row.PendingUpload,
+		Uploaded:      row.Uploaded,
+		Processing:    row.Processing,
+		Analyzed:      row.Analyzed,
+		Failed:        row.Failed,
+		Human:         row.Human,
+		AIGenerated:   row.AIGenerated,
+		Uncertain:     row.Uncertain,
+		From:          from,
+		To:            to,
+		DailyControls: daily,
+		KPIs:          *kpis,
 	}, nil
 }
 
@@ -388,17 +388,19 @@ func round1(v float64) float64 {
 	return math.Round(v*10) / 10
 }
 
-func (r *mediaReadRepository) countMonthlyControlsByClientID(
+func (r *mediaReadRepository) countDailyControlsByClientID(
 	ctx context.Context,
 	clientID uuid.UUID,
 	campaignID *uuid.UUID,
-	periodEnd time.Time,
-) ([]domainmedia.MediaMonthlyStats, error) {
-	end := periodEnd.UTC()
-	start := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -5, 0)
+	from, to time.Time,
+) ([]domainmedia.MediaDailyStats, error) {
+	from = from.UTC()
+	to = to.UTC()
+	startDay := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC)
+	endDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC)
 
 	var rows []struct {
-		Month         string
+		Day           string
 		PendingUpload int64
 		Uploaded      int64
 		Processing    int64
@@ -411,7 +413,7 @@ func (r *mediaReadRepository) countMonthlyControlsByClientID(
 	q := r.db.WithContext(ctx).
 		Table("media").
 		Select(`
-			to_char(date_trunc('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
+			to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
 			COUNT(*) FILTER (WHERE status = 'pending_upload') AS pending_upload,
 			COUNT(*) FILTER (WHERE status = 'uploaded') AS uploaded,
 			COUNT(*) FILTER (WHERE status = 'processing') AS processing,
@@ -421,19 +423,19 @@ func (r *mediaReadRepository) countMonthlyControlsByClientID(
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'ai_generated') AS ai_generated,
 			COUNT(*) FILTER (WHERE verdict->>'label' = 'uncertain') AS uncertain
 		`).
-		Where("client_id = ? AND created_at >= ?", clientID, start)
+		Where("client_id = ? AND created_at >= ? AND created_at <= ?", clientID, from, to)
 	if campaignID != nil {
 		q = q.Where("campaign_id = ?", *campaignID)
 	}
-	err := q.Group("month").Order("month ASC").Scan(&rows).Error
+	err := q.Group("day").Order("day ASC").Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 
-	byMonth := make(map[string]domainmedia.MediaMonthlyStats, len(rows))
+	byDay := make(map[string]domainmedia.MediaDailyStats, len(rows))
 	for _, row := range rows {
-		byMonth[row.Month] = domainmedia.MediaMonthlyStats{
-			Month:         row.Month,
+		byDay[row.Day] = domainmedia.MediaDailyStats{
+			Day:           row.Day,
 			PendingUpload: row.PendingUpload,
 			Uploaded:      row.Uploaded,
 			Processing:    row.Processing,
@@ -445,15 +447,14 @@ func (r *mediaReadRepository) countMonthlyControlsByClientID(
 		}
 	}
 
-	out := make([]domainmedia.MediaMonthlyStats, 0, 6)
-	for i := 0; i < 6; i++ {
-		monthStart := start.AddDate(0, i, 0)
-		key := monthStart.Format("2006-01")
-		if stats, ok := byMonth[key]; ok {
-			out = append(out, stats)
+	out := make([]domainmedia.MediaDailyStats, 0, len(rows))
+	for d := startDay; !d.After(endDay); d = d.AddDate(0, 0, 1) {
+		key := d.Format("2006-01-02")
+		stats, ok := byDay[key]
+		if !ok {
 			continue
 		}
-		out = append(out, domainmedia.MediaMonthlyStats{Month: key})
+		out = append(out, stats)
 	}
 	return out, nil
 }

@@ -524,9 +524,9 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 			Human:         6,
 			AIGenerated:   7,
 			Uncertain:     8,
-			MonthlyControls: []domainmedia.MediaMonthlyStats{
-				{Month: "2026-04", Analyzed: 1, Human: 1},
-				{Month: "2026-09", Analyzed: 3, AIGenerated: 2, Uncertain: 1},
+			DailyControls: []domainmedia.MediaDailyStats{
+				{Day: "2026-09-01", Analyzed: 1, Human: 1},
+				{Day: "2026-09-10", Analyzed: 3, AIGenerated: 2, Uncertain: 1},
 			},
 			KPIs: domainmedia.MediaDashboardKPIs{
 				Month:                      "2026-09",
@@ -575,9 +575,9 @@ func TestMediaHandler_Stats_Success(t *testing.T) {
 		body["aiGenerated"] != float64(7) || body["uncertain"] != float64(8) {
 		t.Fatalf("body: %#v", body)
 	}
-	monthly, ok := body["monthlyControls"].([]any)
-	if !ok || len(monthly) != 2 {
-		t.Fatalf("monthlyControls: %#v", body["monthlyControls"])
+	daily, ok := body["dailyControls"].([]any)
+	if !ok || len(daily) != 2 {
+		t.Fatalf("dailyControls: %#v", body["dailyControls"])
 	}
 	kpis, ok := body["kpis"].(map[string]any)
 	if !ok {

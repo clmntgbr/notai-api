@@ -62,9 +62,6 @@ func (h *CreateCampaignHandler) Handle(
 		return h.outbox.StoreEvents(txCtx, campaign.PullEvents())
 	})
 	if err != nil {
-		if errors.Is(err, domaincampaign.ErrInvalidSchedule) {
-			return nil, err
-		}
 		return nil, errors.New("failed to create campaign")
 	}
 

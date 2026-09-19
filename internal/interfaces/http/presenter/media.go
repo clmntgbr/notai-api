@@ -281,18 +281,18 @@ func NewMediaDetailResponse(result *querymedia.GetByIDResult) MediaDetailRespons
 }
 
 type MediaStatsResponse struct {
-	PendingUpload   int64                          `json:"pendingUpload"`
-	Uploaded        int64                          `json:"uploaded"`
-	Processing      int64                          `json:"processing"`
-	Analyzed        int64                          `json:"analyzed"`
-	Failed          int64                          `json:"failed"`
-	Human           int64                          `json:"human"`
-	AIGenerated     int64                          `json:"aiGenerated"`
-	Uncertain       int64                          `json:"uncertain"`
-	From            time.Time                      `json:"from"`
-	To              time.Time                      `json:"to"`
-	MonthlyControls []MediaMonthlyControlsResponse `json:"monthlyControls"`
-	KPIs            MediaDashboardKPIsResponse     `json:"kpis"`
+	PendingUpload int64                        `json:"pendingUpload"`
+	Uploaded      int64                        `json:"uploaded"`
+	Processing    int64                        `json:"processing"`
+	Analyzed      int64                        `json:"analyzed"`
+	Failed        int64                        `json:"failed"`
+	Human         int64                        `json:"human"`
+	AIGenerated   int64                        `json:"aiGenerated"`
+	Uncertain     int64                        `json:"uncertain"`
+	From          time.Time                    `json:"from"`
+	To            time.Time                    `json:"to"`
+	DailyControls []MediaDailyControlsResponse `json:"dailyControls"`
+	KPIs          MediaDashboardKPIsResponse   `json:"kpis"`
 }
 
 type MediaDashboardKPIsResponse struct {
@@ -309,8 +309,8 @@ type MediaDashboardKPIsResponse struct {
 	AIGeneratedSharePercent    float64  `json:"aiGeneratedSharePercent"`
 }
 
-type MediaMonthlyControlsResponse struct {
-	Month         string `json:"month"`
+type MediaDailyControlsResponse struct {
+	Day           string `json:"day"`
 	PendingUpload int64  `json:"pendingUpload"`
 	Uploaded      int64  `json:"uploaded"`
 	Processing    int64  `json:"processing"`
@@ -324,14 +324,14 @@ type MediaMonthlyControlsResponse struct {
 func NewMediaStatsResponse(stats *domainmedia.MediaStats) MediaStatsResponse {
 	if stats == nil {
 		return MediaStatsResponse{
-			MonthlyControls: make([]MediaMonthlyControlsResponse, 0),
-			KPIs:            MediaDashboardKPIsResponse{},
+			DailyControls: make([]MediaDailyControlsResponse, 0),
+			KPIs:          MediaDashboardKPIsResponse{},
 		}
 	}
-	monthly := make([]MediaMonthlyControlsResponse, 0, len(stats.MonthlyControls))
-	for _, m := range stats.MonthlyControls {
-		monthly = append(monthly, MediaMonthlyControlsResponse{
-			Month:         m.Month,
+	daily := make([]MediaDailyControlsResponse, 0, len(stats.DailyControls))
+	for _, m := range stats.DailyControls {
+		daily = append(daily, MediaDailyControlsResponse{
+			Day:           m.Day,
 			PendingUpload: m.PendingUpload,
 			Uploaded:      m.Uploaded,
 			Processing:    m.Processing,
@@ -343,17 +343,17 @@ func NewMediaStatsResponse(stats *domainmedia.MediaStats) MediaStatsResponse {
 		})
 	}
 	return MediaStatsResponse{
-		PendingUpload:   stats.PendingUpload,
-		Uploaded:        stats.Uploaded,
-		Processing:      stats.Processing,
-		Analyzed:        stats.Analyzed,
-		Failed:          stats.Failed,
-		Human:           stats.Human,
-		AIGenerated:     stats.AIGenerated,
-		Uncertain:       stats.Uncertain,
-		From:            stats.From,
-		To:              stats.To,
-		MonthlyControls: monthly,
+		PendingUpload: stats.PendingUpload,
+		Uploaded:      stats.Uploaded,
+		Processing:    stats.Processing,
+		Analyzed:      stats.Analyzed,
+		Failed:        stats.Failed,
+		Human:         stats.Human,
+		AIGenerated:   stats.AIGenerated,
+		Uncertain:     stats.Uncertain,
+		From:          stats.From,
+		To:            stats.To,
+		DailyControls: daily,
 		KPIs: MediaDashboardKPIsResponse{
 			Month:                      stats.KPIs.Month,
 			Verifications:              stats.KPIs.Verifications,
